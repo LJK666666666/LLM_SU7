@@ -1,0 +1,591 @@
+
+ ▐▛███▜▌   Claude Code v2.0.56
+▝▜█████▛▘  Opus 4.5 · API Usage Billing
+  ▘▘ ▝▝    D:\010_CodePrograms\1assignment_done\251202sjwjks
+
+  /model to try Opus 4.5
+
+> 我们的数据挖掘课程设计大作业要求从PPT @数据挖掘大作业2023.pdf 
+中选取一个课题或者自己找一个数据挖掘课题进行研究，请你为我推荐一个课题。
+
+● 我来先阅读这个PPT文件，了解可选的课题有哪些。
+
+● Read(数据挖掘大作业2023.pdf)
+  ⎿  Read PDF (1.5MB)
+
+● 根据PDF内容，我为你整理了所有可选课题，并给出推荐：
+
+  课题列表概览
+
+  | 类别  | 课题                         | 难度  | 特点        |
+  |-----|----------------------------|-----|-----------|
+  | 互联网 | 1. AS-Level网络节点重要性分析       | 中   | 网络分析、图论   |
+  | 互联网 | 2. AS级核心结构分析(IPv4 vs IPv6) | 中   | 网络对比分析    |
+  | 互联网 | 3. AS组织的社团结构分析             | 中   | 社团检测      |
+  | 互联网 | 4. BGP异常事件检测               | 较高  | 时序分类、机器学习 |
+  | 区块链 | 5. 比特币价格预测                 | 较高  | 时序预测、深度学习
+  |
+  | 区块链 | 6. 钓鱼账户检测                  | 中   | 分类、图嵌入    |
+  | 新题目 | 7. 城市二手房价格挖掘               | 中低  | 爬虫、可视化    |
+  | 新题目 | 8. 城市交通网络特性分析              | 中   | 复杂网络      |
+  | 新题目 | 9. Reddit社交媒体数据挖掘          | 中   | 社交网络、时态分析
+  |
+  | 经典  | 10. 推荐系统                   | 中   | 协同过滤、矩阵分解 |
+  | 新题目 | 11. 个性化新闻推荐系统              | 中高  | NLP、推荐算法  |
+  | 新题目 | 12. 小米SU7舆情挖掘              | 中低  | 文本分析、LDA  |
+  | 新题目 | 13. "爆款"言论预测               | 中   | 特征工程、分类   |
+
+  ---
+  我的推荐：课题12 - 小米SU7舆情挖掘
+
+  推荐理由：
+
+  1. 数据现成：GitHub已有数据集，无需复杂爬虫
+  2. 话题新颖：小米汽车是2024年热点，答辩时容易引起兴趣
+  3. 技术全面：涵盖文本预处理、主题建模(LDA)、情感分析、时序分析
+  4. 难度适中：不需要深度学习，用传统机器学习即可完成
+  5. 可视化丰富：词云、情感趋势图、主题分布图，报告容易做得漂亮
+
+  备选推荐：
+  - 如果你对网络分析感兴趣：选 课题8(城市交通网络)，贴近生活且有参考论文
+  - 如果想挑战机器学习：选 课题6(钓鱼账户检测)，实用性强
+
+  需要我帮你进一步分析某个课题的具体实现思路吗？
+
+> 那么 13. "爆款"言论预测 呢？ 
+
+● 课题13也是个不错的选择，我来详细分析一下：
+
+  课题13：基于评论特征的"爆款"言论预测
+
+  优点
+
+  1. 数据相同：和课题12用同一份小米SU7微博数据，数据获取无压力
+  2. 问题定义清晰：预测评论能否成为"高赞热评"，是典型的分类/回归问题
+  3. 特征工程空间大：可以挖掘很多有趣的特征
+  4. 结论有趣：能回答"什么样的评论容易火"这个问题，答辩时很有话题性
+  5. 机器学习实践完整：数据处理 -> 特征工程 -> 模型训练 -> 特征重要性分析
+
+  与课题12的对比
+
+  | 维度   | 课题12(舆情挖掘)   | 课题13(爆款预测)   |
+  |------|--------------|--------------|
+  | 核心任务 | 无监督(主题发现、聚类) | 有监督(分类/回归)   |
+  | 技术侧重 | LDA主题模型、情感分析 | 特征工程、分类器     |
+  | 输出类型 | 描述性分析(是什么)   | 预测性分析(会怎样)   |
+  | 难度   | 中低           | 中            |
+  | 创新空间 | 一般           | 较大(特征可以自由设计) |
+
+  实现思路
+
+  1. 数据准备
+     - 定义标签：点赞数 > 某阈值 -> "爆款"(1)，否则(0)
+
+  2. 特征工程（重点）
+     - 文本特征：长度、情感分数、关键词命中、表情数量、感叹号数量
+     - 时间特征：发布时段、距原博时间差
+     - 用户特征：粉丝数(如有)
+
+  3. 模型训练
+     - 基线：逻辑回归、决策树
+     - 进阶：随机森林、XGBoost
+
+  4. 特征重要性分析
+     - 哪些因素最影响评论走红？
+
+  我的建议
+
+  如果你更偏好：
+  - 探索性分析、可视化 -> 选课题12
+  - 机器学习建模、预测任务 -> 选课题13
+
+  两个课题可以结合做：先做课题12的舆情分析作为背景，再做课题13的预测作为核心
+  工作，内容会更充实。
+
+  你倾向于哪个方向？或者想两个结合来做？
+
+> /mcp 
+  ⎿  MCP dialog dismissed
+
+> /mcp 
+  ⎿  MCP dialog dismissed
+
+> 我打算先做课题12的舆情分析作为背景，再做课题13的预测作为核心工作。
+我已经下载好数据集在文件夹 @小米SU7数据 中。
+我希望后期工作可以尝试：BERT 或 Word2Vec 
+进行语义建模等有一定创新性的工作，或者有深度的关联分析等。
+现在需要你完成前期的基础性工作，你可以使用jupyter的mcp工具来更方便地操控note
+book进行探索性数据分析。
+
+● 好的，我来开始前期的基础性工作。首先让我查看数据集的结构。
+
+● Bash(ls -la "D:\010_CodePrograms\1assignment_done\251202sjwjks\小米SU7数据")
+  ⎿  total 4                                  
+     drwxr-xr-x 1 LJK 197609 0 Nov 30 16:38 .
+     drwxr-xr-x 1 LJK 197609 0 Dec  2 16:18 ..
+     … +19 lines (ctrl+o to expand)
+
+● Bash(ls -la "D:\010_CodePrograms\1assignment_done\251202sjwjks\小米SU7数据\202
+      5-03-27")
+  ⎿  total 2848                                     
+     drwxr-xr-x 1 LJK 197609       0 Nov 30 16:44 .
+     drwxr-xr-x 1 LJK 197609       0 Nov 30 16:38 ..
+     … +6 lines (ctrl+o to expand)
+
+● 让我先查看几个CSV文件的具体内容结构：
+
+● Bash(head -5 "D:\010_CodePrograms\1assignment_done\251202sjwjks\小米SU7数据\20
+      25-03-27\热门微博.csv")
+  ⎿ author_name,author_url,weibo_url,publish_time,weibo_content,repost_coun
+    t,comment_count,like_count
+    小米汽车,https://weibo.com/7871239944,https://weibo.com/7871239944/Pkvs
+    RdOv
+    … +10 lines (ctrl+o to expand)
+
+
+● Bash(head -5 "D:\010_CodePrograms\1assignment_done\251202sjwjks\小米SU7数据\20
+      25-03-27\热门微博评论数据.csv")
+  ⎿ 原文链接,根评论ID,父评论ID,评论ID,用户ID,父用户昵称,用户昵称,评论内容, 
+    发布时间,子评论数,点赞数,用户认证,用户总评论数,用户
+    总转发数,用户总点赞数,是否是一级评论
+    https://weibo.com/7871239944/PkvsRdOvf,,7871239944,5148876097454178,686
+    … +11 lines (ctrl+o to expand)
+
+
+● Bash(head -5 "D:\010_CodePrograms\1assignment_done\251202sjwjks\小米SU7数据\20
+      25-03-27\评论链结构_打分.csv")
+  ⎿  ﻿weibo_id,thread_id,time_id,comment_index,comment_user,replied_to_user
+     thread_text,立场得分,是否相关
+     82,1,0,4868,煮不熟的茶叶蛋-,主题,SU7大卖，Higo比死了爹还难受,0.854,1
+     … +4 lines (ctrl+o to expand)
+
+● 数据结构已经清晰了。现在让我创建一个Jupyter Notebook来进行探索性数据分析：
+
+● 现在我对数据结构有了了解。让我创建一个Jupyter
+  Notebook来进行探索性数据分析：
+
+● jupyter - use_notebook (MCP)(mode: "create", notebook_name:
+                              "xiaomi_su7_analysis", notebook_path:
+                              "notebooks/xiaomi_su7_eda.ipynb")
+  ⎿  {                                                                     
+       "result": "'notebooks' not found in jupyter server, please check the
+     directory path already exists."
+     }
+
+● Bash(mkdir -p "D:\010_CodePrograms\1assignment_done\251202sjwjks\notebooks")
+  ⎿  (No content)
+
+● jupyter - use_notebook (MCP)(mode: "create", notebook_name:
+                              "xiaomi_su7_analysis", notebook_path:
+                              "notebooks/xiaomi_su7_eda.ipynb")
+  ⎿ {                                                                      
+      "result": "[INFO] Connected to kernel '3b1813a1-b612-4198-b762-588d5e
+    965700'.\n[INFO] Successfully activate notebook 'xiaomi_su7_analysis'.\
+    … +4 lines (ctrl+o to expand)
+
+
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 0, cell_source: "#
+                                          小米SU7微博舆情分析 -
+                                          探索性数据分析\n# ====================
+                                          ======================\n\nimport
+                                          pandas as pd\nimport numpy as
+                                          np\nimport os\nimport glob\nfrom
+                                          datetime import datetime\nimport
+                                          warnings\nwarnings.filterwarnings('ign
+                                          ore')\n\n# 设置显示选项\npd.set_option
+                                          ('display.max_columns', None)\npd.set_
+                                          option('display.max_colwidth',
+                                          100)\npd.set_option('display.width',
+                                          None)\n\n# 数据路径\nDATA_PATH =
+                                          '../小米SU7数据'\n\n#
+                                          获取所有日期文件夹\ndate_folders =
+                                          sorted([f for f in
+                                          os.listdir(DATA_PATH) if
+                                          os.path.isdir(os.path.join(DATA_PATH,
+                                          f))])\nprint(f\"数据覆盖日期范围:
+                                          {date_folders[0]} 至
+                                          {date_folders[-1]}\")\nprint(f\"共
+                                          {len(date_folders)} 天的数据\")",
+                                          timeout: 60)
+  ⎿  {                                                                 
+       "result": [
+         "数据覆盖日期范围: 2025-03-27 至 2025-04-14\n共 19 天的数据\n"
+     … +2 lines (ctrl+o to expand)
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 1, cell_source: "# 1.
+                                          加载并合并所有数据\n#
+                                          ========================\n\ndef
+                                          load_all_data(data_path,
+                                          date_folders):\n
+                                          \"\"\"加载所有日期的数据\"\"\"\n
+                                          all_weibo = []\n    all_comments =
+                                          []\n    all_forwards = []\n
+                                          all_comment_chains = []\n    \n    for
+                                           date_folder in date_folders:\n
+                                           folder_path = os.path.join(data_path,
+                                           date_folder)\n        \n        #
+                                          热门微博\n        weibo_file =
+                                          os.path.join(folder_path,
+                                          '热门微博.csv')\n        if
+                                          os.path.exists(weibo_file):\n
+                                             df = pd.read_csv(weibo_file)\n
+                                                 df['crawl_date'] =
+                                          date_folder\n
+                                          all_weibo.append(df)\n        \n
+                                            # 评论数据\n        comment_file =
+                                          os.path.join(folder_path,
+                                          '热门微博评论数据.csv')\n        if
+                                          os.path.exists(comment_file):\n
+                                               df = pd.read_csv(comment_file)\n
+                                                     df['crawl_date'] =
+                                          date_folder\n
+                                          all_comments.append(df)\n        \n
+                                               # 转发数据\n        forward_file
+                                          = os.path.join(folder_path,
+                                          '热门微博转发数据.csv')\n        if
+                                          os.path.exists(forward_file):\n
+                                               df = pd.read_csv(forward_file)\n
+                                                     df['crawl_date'] =
+                                          date_folder\n
+                                          all_forwards.append(df)\n        \n
+                                               # 评论链结构(带打分)\n
+                                          chain_file = os.path.join(folder_path,
+                                           '评论链结构_打分.csv')\n        if
+                                          os.path.exists(chain_file):\n
+                                             df = pd.read_csv(chain_file,
+                                          encoding='utf-8-sig')\n
+                                          df['crawl_date'] = date_folder\n
+                                                all_comment_chains.append(df)\n
+                                             \n    weibo_df =
+                                          pd.concat(all_weibo,
+                                          ignore_index=True) if all_weibo else
+                                          pd.DataFrame()\n    comments_df =
+                                          pd.concat(all_comments,
+                                          ignore_index=True) if all_comments
+                                          else pd.DataFrame()\n    forwards_df =
+                                           pd.concat(all_forwards,
+                                          ignore_index=True) if all_forwards
+                                          else pd.DataFrame()\n    chains_df =
+                                          pd.concat(all_comment_chains,
+                                          ignore_index=True) if
+                                          all_comment_chains else
+                                          pd.DataFrame()\n    \n    return
+                                          weibo_df, comments_df, forwards_df,
+                                          chains_df\n\nweibo_df, comments_df,
+                                          forwards_df, chains_df =
+                                          load_all_data(DATA_PATH,
+                                          date_folders)\n\nprint(\"=\" * 60)\npr
+                                          int(\"数据集加载完成:\")\nprint(f\"
+                                          热门微博: {len(weibo_df):,}
+                                          条\")\nprint(f\"  评论数据:
+                                          {len(comments_df):,} 条\")\nprint(f\"
+                                           转发数据: {len(forwards_df):,}
+                                          条\")\nprint(f\"  评论链(带立场得分):
+                                          {len(chains_df):,} 条\")\nprint(\"=\"
+                                          * 60)", timeout: 120)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n数据集加
+    … +5 lines (ctrl+o to expand)
+
+
+● 数据量很大！让我继续探索数据结构：
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 2, cell_source: "# 2.
+                                          查看各数据集的结构\n# ================
+                                          ========\n\nprint(\"=\" * 60)\nprint(\
+                                          "【热门微博数据结构】\")\nprint(\"=\"
+                                          * 60)\nprint(f\"字段: {list(weibo_df.c
+                                          olumns)}\")\nprint(f\"\\n数据类型:\")\
+                                          nprint(weibo_df.dtypes)\nprint(f\"\\n
+                                          前3条数据:\")\nweibo_df.head(3)",
+                                          timeout: 30)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n【热门微
+    … +24 lines (ctrl+o to expand)
+
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 3, cell_source:
+                                          "print(\"=\" * 60)\nprint(\"【评论数据
+                                          结构】\")\nprint(\"=\" *
+                                          60)\nprint(f\"字段:
+                                          {list(comments_df.columns)}\")\nprint(
+                                          f\"\\n数据类型:\")\nprint(comments_df.
+                                          dtypes)\nprint(f\"\\n前3条数据:\")\nco
+                                          mments_df.head(3)", timeout: 30)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n【评论数
+    … +29 lines (ctrl+o to expand)
+
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 4, cell_source:
+                                          "print(\"=\" *
+                                          60)\nprint(\"【评论链结构(带立场得分)
+                                          数据结构】\")\nprint(\"=\" *
+                                          60)\nprint(f\"字段: {list(chains_df.co
+                                          lumns)}\")\nprint(f\"\\n数据类型:\")\n
+                                          print(chains_df.dtypes)\nprint(f\"\\n
+                                          前5条数据:\")\nchains_df.head(5)",
+                                          timeout: 30)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n【评论链
+    … +27 lines (ctrl+o to expand)
+
+
+● 很好，评论链数据已经有立场得分，这对后续情感分析非常有用！让我继续进行数据
+  清洗和统计分析：
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 5, cell_source: "# 3.
+                                          数据清洗\n#
+                                          ========================\n\n# 3.1
+                                          去除重复数据\nprint(\"【数据去重】\")\
+                                          nprint(f\"去重前 - 微博:
+                                          {len(weibo_df)}, 评论:
+                                          {len(comments_df)}, 评论链:
+                                          {len(chains_df)}\")\n\n#
+                                          微博根据URL去重\nweibo_df_clean =
+                                          weibo_df.drop_duplicates(subset=['weib
+                                          o_url'], keep='last')\n\n#
+                                          评论根据评论ID去重\ncomments_df_clean
+                                          = comments_df.drop_duplicates(subset=[
+                                          '评论ID'], keep='last')\n\n#
+                                          评论链根据 weibo_id, thread_id,
+                                          time_id 去重\nchains_df_clean =
+                                          chains_df.drop_duplicates(subset=['wei
+                                          bo_id', 'thread_id', 'time_id'],
+                                          keep='last')\n\nprint(f\"去重后 -
+                                          微博: {len(weibo_df_clean)}, 评论:
+                                          {len(comments_df_clean)}, 评论链:
+                                          {len(chains_df_clean)}\")\n\n# 3.2 处
+                                          理缺失值\nprint(\"\\n【缺失值情况】\")
+                                          \nprint(\"评论数据缺失值统计:\")\nprin
+                                          t(comments_df_clean.isnull().sum())",
+                                          timeout: 60)
+  ⎿  {                                                             
+       "result": [
+         "【数据去重】\n去重前 - 微博: 7215, 评论: 273975, 评论链:
+     273760\n去重后 - 微博: 4153, 评
+     … +9 lines (ctrl+o to expand)
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 6, cell_source: "# 3.3
+                                          数据类型转换与清洗\nprint(\"【数据类型
+                                          转换】\")\n\n# 转换时间字段\nweibo_df_
+                                          clean['publish_time'] = pd.to_datetime
+                                          (weibo_df_clean['publish_time'])\ncomm
+                                          ents_df_clean['发布时间'] =
+                                          pd.to_datetime(comments_df_clean['发布
+                                          时间'])\n\n#
+                                          处理用户统计数据中的逗号(如 \"25,928\"
+                                           -> 25928)\ndef clean_number(x):\n
+                                          if isinstance(x, str):\n        return
+                                           int(x.replace(',', ''))\n    return
+                                          x\n\ncomments_df_clean['用户总评论数']
+                                           = comments_df_clean['用户总评论数'].a
+                                          pply(clean_number)\ncomments_df_clean[
+                                          '用户总转发数'] = comments_df_clean['
+                                          用户总转发数'].apply(clean_number)\nco
+                                          mments_df_clean['用户总点赞数'] =
+                                          comments_df_clean['用户总点赞数'].appl
+                                          y(clean_number)\n\n# 填充空评论内容\nc
+                                          omments_df_clean['评论内容'] =
+                                          comments_df_clean['评论内容'].fillna('
+                                          ')\n\nprint(\"时间字段和数值字段转换完
+                                          成\")\nprint(f\"\\n微博时间范围:
+                                          {weibo_df_clean['publish_time'].min()}
+                                           至 {weibo_df_clean['publish_time'].ma
+                                          x()}\")\nprint(f\"评论时间范围:
+                                          {comments_df_clean['发布时间'].min()}
+                                          至 {comments_df_clean['发布时间'].max(
+                                          )}\")", timeout: 60)
+  ⎿  {                            
+       "result": [
+         "【数据类型转换】\n",
+     … +4 lines (ctrl+o to expand)
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 7, cell_source: "# 4.
+                                          基础统计分析\n#
+                                          ========================\nimport
+                                          matplotlib.pyplot as plt\n\n# 设置中文
+                                          字体\nplt.rcParams['font.sans-serif']
+                                          = ['SimHei', 'Microsoft YaHei',
+                                          'DejaVu Sans']\nplt.rcParams['axes.uni
+                                          code_minus'] = False\n\nprint(\"=\" *
+                                          60)\nprint(\"【基础统计信息】\")\nprin
+                                          t(\"=\" * 60)\n\n# 4.1
+                                          微博统计\nprint(\"\\n--- 热门微博统计
+                                          ---\")\nprint(f\"独立微博数:
+                                          {weibo_df_clean['weibo_url'].nunique()
+                                          }\")\nprint(f\"独立作者数:
+                                          {weibo_df_clean['author_name'].nunique
+                                          ()}\")\nprint(f\"平均转发数:
+                                          {weibo_df_clean['repost_count'].mean()
+                                          :.1f}\")\nprint(f\"平均评论数:
+                                          {weibo_df_clean['comment_count'].mean(
+                                          ):.1f}\")\nprint(f\"平均点赞数:
+                                          {weibo_df_clean['like_count'].mean():.
+                                          1f}\")\n\n# 4.2
+                                          评论统计\nprint(\"\\n--- 评论数据统计
+                                          ---\")\nprint(f\"总评论数:
+                                          {len(comments_df_clean):,}\")\nprint(f
+                                          \"一级评论数:
+                                          {comments_df_clean['是否是一级评论'].s
+                                          um():,}\")\nprint(f\"回复评论数:
+                                          {(~comments_df_clean['是否是一级评论']
+                                          ).sum():,}\")\nprint(f\"独立用户数:
+                                          {comments_df_clean['用户ID'].nunique()
+                                          :,}\")\nprint(f\"认证用户评论数:
+                                          {comments_df_clean['用户认证'].sum():,
+                                          }\")\n\n# 4.3 点赞分布\nprint(\"\\n---
+                                           评论点赞分布 ---\")\nprint(comments_d
+                                          f_clean['点赞数'].describe())",
+                                          timeout: 60)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n【基础统
+    … +9 lines (ctrl+o to expand)
+
+
+● 我注意到点赞数全为0，这可能是爬虫获取时的问题。让我检查评论链数据中的立场
+  得分：
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 8, cell_source: "# 4.4 立
+                                          场得分分析（评论链数据）\nprint(\"=\"
+                                          * 60)\nprint(\"【立场得分分析】\")\npr
+                                          int(\"=\" * 60)\n\n#
+                                          只看相关评论\nrelated_chains = chains_
+                                          df_clean[chains_df_clean['是否相关']
+                                          == 1]\nprint(f\"\\n相关评论数:
+                                          {len(related_chains):,} (占比: {len(re
+                                          lated_chains)/len(chains_df_clean)*100
+                                          :.1f}%)\")\nprint(f\"非相关评论数:
+                                          {len(chains_df_clean) - len(related_ch
+                                          ains):,}\")\n\nprint(\"\\n---
+                                          立场得分分布(相关评论)
+                                          ---\")\nprint(related_chains['立场得分
+                                          '].describe())\n\n# 情感分类\ndef
+                                          classify_sentiment(score):\n    if
+                                          score > 0.3:\n        return '正面'\n
+                                             elif score < -0.3:\n        return
+                                          '负面'\n    else:\n        return
+                                          '中性'\n\nrelated_chains['情感分类'] =
+                                           related_chains['立场得分'].apply(clas
+                                          sify_sentiment)\nsentiment_dist =
+                                          related_chains['情感分类'].value_count
+                                          s()\nprint(\"\\n--- 情感分类分布
+                                          ---\")\nprint(sentiment_dist)\nprint(f
+                                          \"\\n正面占比:
+                                          {sentiment_dist.get('正面',
+                                          0)/len(related_chains)*100:.1f}%\")\np
+                                          rint(f\"负面占比:
+                                          {sentiment_dist.get('负面',
+                                          0)/len(related_chains)*100:.1f}%\")\np
+                                          rint(f\"中性占比:
+                                          {sentiment_dist.get('中性',
+                                          0)/len(related_chains)*100:.1f}%\")",
+                                          timeout: 60)
+  ⎿ {                                                                      
+      "result": [
+
+    "============================================================\n【立场得
+    … +9 lines (ctrl+o to expand)
+
+
+● 有趣！负面评论占比最高(46.6%)，这和小米SU7上市初期的争议相符。让我继续进行
+  可视化分析：
+
+● jupyter - insert_execute_code_cell (MCP)(cell_index: 9, cell_source: "# 5.
+                                          可视化分析\n#
+                                          ========================\n\nfig, axes
+                                          = plt.subplots(2, 2, figsize=(14,
+                                          10))\n\n# 5.1 每日评论数量趋势\ncommen
+                                          ts_df_clean['发布日期'] =
+                                          comments_df_clean['发布时间'].dt.date\
+                                          ndaily_comments = comments_df_clean.gr
+                                          oupby('发布日期').size()\n#
+                                          只取主要时间段\ndaily_comments =
+                                          daily_comments[daily_comments.index <=
+                                           pd.to_datetime('2025-04-15').date()]\
+                                          n\naxes[0,
+                                          0].bar(range(len(daily_comments)),
+                                          daily_comments.values,
+                                          color='steelblue', alpha=0.8)\naxes[0,
+                                           0].set_xlabel('日期')\naxes[0,
+                                          0].set_ylabel('评论数量')\naxes[0,
+                                          0].set_xticks(range(0,
+                                          len(daily_comments), 2))\naxes[0,
+                                          0].set_xticklabels([str(d)[5:] for d
+                                          in daily_comments.index[::2]],
+                                          rotation=45)\naxes[0,
+                                          0].grid(axis='y', alpha=0.3)\n\n# 5.2
+                                          情感分布饼图\ncolors = ['#2ecc71',
+                                          '#95a5a6',
+                                          '#e74c3c']\nsentiment_counts =
+                                          [sentiment_dist.get('正面', 0),
+                                          sentiment_dist.get('中性', 0),
+                                          sentiment_dist.get('负面',
+                                          0)]\naxes[0, 1].pie(sentiment_counts,
+                                          labels=['正面', '中性', '负面'],
+                                          colors=colors, \n
+                                          autopct='%1.1f%%', startangle=90,
+                                          explode=(0.02, 0.02, 0.05))\n\n# 5.3
+                                          立场得分分布直方图\naxes[1,
+                                          0].hist(related_chains['立场得分'],
+                                          bins=50, color='steelblue', alpha=0.7,
+                                           edgecolor='white')\naxes[1,
+                                          0].axvline(x=0, color='red',
+                                          linestyle='--', linewidth=2,
+                                          label='中性线')\naxes[1, 0].axvline(x=
+                                          related_chains['立场得分'].mean(),
+                                          color='orange', linestyle='--', \n
+                                                         linewidth=2,
+                                          label=f'均值({related_chains[\"立场得
+                                          分\"].mean():.2f})')\naxes[1,
+                                          0].set_xlabel('立场得分')\naxes[1,
+                                          0].set_ylabel('评论数量')\naxes[1,
+                                          0].legend()\naxes[1, 0].grid(axis='y',
+                                           alpha=0.3)\n\n# 5.4 每日情感趋势\nrel
+                                          ated_chains['发布日期'] =
+                                          pd.to_datetime(chains_df_clean['crawl_
+                                          date'])\ndaily_sentiment =
+                                          related_chains.groupby(['发布日期',
+                                          '情感分类']).size().unstack(fill_value
+                                          =0)\nif not daily_sentiment.empty:\n
+                                            daily_sentiment_pct = daily_sentimen
+                                          t.div(daily_sentiment.sum(axis=1),
+                                          axis=0) * 100\n
+                                          daily_sentiment_pct[['正面', '中性',
+                                          '负面']].plot(ax=axes[1, 1],
+                                          marker='o', markersize=4)\n    axes[1,
+                                           1].set_xlabel('日期')\n    axes[1,
+                                          1].set_ylabel('占比 (%)')\n    axes[1,
+                                           1].legend(loc='upper right')\n
+                                          axes[1, 1].grid(alpha=0.3)\n
+                                          axes[1, 1].tick_params(axis='x', rotat
+                                          ion=45)\n\nplt.tight_layout()\nplt.sav
+                                          efig('../results/eda_overview.png',
+                                          dpi=150, bbox_inches='tight')\nplt.sho
+                                          w()\nprint(\"图表已保存至
+                                          results/eda_overview.png\")", timeout:
+                                           60)
+  ⎿  ⚠ Large MCP response (~42.9k tokens), this can fill up context quickly
+  ⎿ {
+      "result": [
+        "------------------------------------------------------------------
+    … +2426 lines (ctrl+o to expand)
+
+  ⎿  API Error: 520 status code (no body)
+
+> /doctor 
+  ⎿  Claude Code diagnostics dismissed
+
+
+

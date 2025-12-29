@@ -1,0 +1,14 @@
+.claude/
+.vscode/
+backup/
+before/
+小米SU7数据/
+小米SU7数据_2/
+
+train.csv
+val.csv
+test.csv
+
+results/热门微博_去重.csv
+results/热门微博评论数据_去重.csv
+
