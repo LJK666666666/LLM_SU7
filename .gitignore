@@ -12,3 +12,9 @@ test.csv
 results/热门微博_去重.csv
 results/热门微博评论数据_去重.csv
 
+bge-base-zh-v1.5/
+
+train_time_density.pkl
+val_time_density.pkl
+test_time_density.pkl
+
