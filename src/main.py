@@ -371,8 +371,8 @@ def train(args):
 
     model_cls = MODEL_REGISTRY[args.model]
 
-    # BGE_NN模型需要特殊处理
-    if args.model == 'bge_nn':
+    # BGE神经网络模型需要特殊处理
+    if args.model in ['bge_nn', 'bge_mini']:
         return train_bge_nn(args, model_cls, train_df, val_df, test_df,
                            train_density, val_density, test_density)
 
