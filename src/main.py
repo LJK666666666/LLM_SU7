@@ -43,6 +43,251 @@ from .evaluation import evaluate
 # 导入工具
 from .utils import get_result_dir, save_results
 
+import pickle
+
+
+def find_latest_checkpoint(model_name):
+    """查找最新的模型checkpoint目录
+
+    参数:
+        model_name: 模型名称
+
+    返回:
+        最新的checkpoint目录路径，如果不存在则返回None
+    """
+    base_name = f'comment_pred_{model_name}'
+    existing = list(RESULT_DIR.glob(f'{base_name}_*'))
+
+    if not existing:
+        return None
+
+    # 找到最大的编号
+    max_num = 0
+    latest_dir = None
+    for p in existing:
+        try:
+            num = int(p.name.split('_')[-1])
+            if num > max_num:
+                max_num = num
+                latest_dir = p
+        except ValueError:
+            pass
+
+    return latest_dir
+
+
+def load_checkpoint(checkpoint_path, model_name):
+    """加载模型checkpoint
+
+    参数:
+        checkpoint_path: checkpoint目录路径
+        model_name: 模型名称
+
+    返回:
+        (model, config) 元组
+    """
+    checkpoint_path = Path(checkpoint_path)
+
+    # 加载传统模型
+    if model_name in ['rf', 'ridge', 'lasso', 'gbdt', 'xgboost', 'lightgbm', 'ngboost']:
+        model_file = checkpoint_path / 'model.pkl'
+        if not model_file.exists():
+            raise FileNotFoundError(f"模型文件不存在: {model_file}")
+
+        with open(model_file, 'rb') as f:
+            model = pickle.load(f)
+
+    # 加载BGE神经网络模型
+    elif model_name in ['bge_nn', 'bge_mini']:
+        model_file = checkpoint_path / 'model.pt'
+        if not model_file.exists():
+            raise FileNotFoundError(f"模型文件不存在: {model_file}")
+
+        # 创建模型实例
+        model_cls = MODEL_REGISTRY[model_name]
+
+        # 加载配置
+        config_file = checkpoint_path / 'config.json' if (checkpoint_path / 'config.json').exists() else checkpoint_path / 'args.json'
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+
+        model = model_cls(
+            freeze_bert=config.get('freeze_bert', True) if 'freeze_bert' in config else not config.get('finetune_bge', False),
+            hidden_size=config.get('hidden_size', 256),
+            dropout=config.get('dropout', 0.1),
+            epochs=config.get('epochs', 30),
+            batch_size=config.get('batch_size', 32),
+            learning_rate=config.get('nn_learning_rate', 1e-4),
+            patience=config.get('patience', 5)
+        )
+
+        # 加载权重
+        checkpoint = torch.load(model_file, map_location='cpu')
+        model.model.load_state_dict(checkpoint['model_state_dict'])
+        model.model.eval()
+
+    else:
+        raise ValueError(f"未知模型类型: {model_name}")
+
+    # 加载配置
+    config_file = checkpoint_path / 'config.json' if (checkpoint_path / 'config.json').exists() else checkpoint_path / 'args.json'
+    with open(config_file, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+
+    return model, config
+
+
+def test_only(args):
+    """仅测试模式：加载已保存的模型并在测试集上评估
+
+    参数:
+        args: 命令行参数
+    """
+    # 确定checkpoint路径
+    if args.checkpoint:
+        checkpoint_path = Path(args.checkpoint)
+        if not checkpoint_path.is_absolute():
+            checkpoint_path = RESULT_DIR / args.checkpoint
+    else:
+        checkpoint_path = find_latest_checkpoint(args.model)
+
+    if checkpoint_path is None or not checkpoint_path.exists():
+        print(f"错误: 找不到模型checkpoint")
+        print(f"请指定 --checkpoint 参数，或确保 results/comment_pred_{args.model}_* 目录存在")
+        return
+
+    print("=" * 60)
+    print(f"【测试模式 - 模型: {args.model}】")
+    print("=" * 60)
+    print(f"加载checkpoint: {checkpoint_path}")
+
+    # 加载模型和配置
+    model, config = load_checkpoint(checkpoint_path, args.model)
+    print(f"模型加载成功: {model.name if hasattr(model, 'name') else args.model}")
+
+    # 解析特征组
+    feature_groups_str = config.get('features', args.features)
+    if feature_groups_str == 'all':
+        feature_groups = ['base', 'text', 'lda', 'density']
+    else:
+        feature_groups = [g.strip() for g in feature_groups_str.split(',')]
+
+    # 获取特征列
+    feature_cols = get_feature_cols(feature_groups)
+    print(f"特征组: {feature_groups}")
+    print(f"特征列 ({len(feature_cols)}个): {feature_cols}")
+
+    # 加载数据
+    print("\n【加载数据】")
+    train_df, val_df, test_df = load_data(use_pkl=True)
+
+    # 加载外部特征（如需要）
+    test_lda, test_density = None, None
+
+    if 'lda' in feature_groups:
+        _, _, test_lda = load_lda_features()
+        if test_lda is None:
+            feature_groups.remove('lda')
+            feature_cols = get_feature_cols(feature_groups)
+
+    if 'density' in feature_groups:
+        density_method = config.get('density_method', args.density_method)
+        _, _, test_density = load_density_features(density_method)
+        if test_density is None:
+            feature_groups.remove('density')
+            feature_cols = get_feature_cols(feature_groups)
+
+    # 特征工程
+    print("\n【特征工程】")
+    if 'base' in feature_groups:
+        print("  提取时间特征...")
+        test_df = extract_time_features(test_df)
+
+    if 'text' in feature_groups:
+        print("  提取文本特征...")
+        test_df = extract_text_features(test_df)
+
+    if 'lda' in feature_groups or 'density' in feature_groups:
+        print("  合并外部特征...")
+        test_df = merge_external_features(test_df, test_lda if 'lda' in feature_groups else None, test_density)
+
+    # BGE神经网络模型测试
+    if args.model in ['bge_nn', 'bge_mini']:
+        return test_bge_nn(args, model, test_df, test_density, checkpoint_path)
+
+    # 传统模型测试
+    print("\n【准备特征】")
+    X_test, y_test = prepare_features(test_df, feature_cols)
+    print(f"测试集特征形状: {X_test.shape}")
+
+    # 预测
+    print("\n【评估结果】")
+    y_test_pred = model.predict(X_test)
+
+    # 获取不确定性估计（如果支持）
+    y_test_std = None
+    if hasattr(model, 'supports_uncertainty') and model.supports_uncertainty:
+        _, y_test_std = model.predict_dist(X_test)
+
+    # 计算评估指标
+    test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
+
+    # 打印结果
+    print(f"\n{'指标':<15} {'值':<12}")
+    print("-" * 30)
+    print(f"{'RMSE':<15} {test_metrics['test_RMSE']:<12.4f}")
+    print(f"{'MAE':<15} {test_metrics['test_MAE']:<12.4f}")
+    print(f"{'MSLE':<15} {test_metrics['test_MSLE']:<12.4f}")
+    print(f"{'R2':<15} {test_metrics['test_R2']:<12.4f}")
+    print(f"{'ACP@20%':<15} {test_metrics['test_ACP@20%']*100:<12.2f}%")
+    print(f"{'ACP@50%':<15} {test_metrics['test_ACP@50%']*100:<12.2f}%")
+
+    if y_test_std is not None:
+        print(f"\n【不确定性指标】")
+        print(f"{'LogNLL':<15} {test_metrics['test_LogNLL']:<12.4f}")
+        print(f"{'PICP@95%':<15} {test_metrics['test_PICP@95%']*100:<12.2f}%")
+        print(f"{'MPIW@95%':<15} {test_metrics['test_MPIW@95%']:<12.4f}")
+
+    print("\n" + "=" * 60)
+    print("【测试完成】")
+    print("=" * 60)
+
+
+def test_bge_nn(args, model, test_df, test_density, checkpoint_path):
+    """BGE神经网络模型测试"""
+    print("\n【评估结果】")
+
+    y_test_pred = model.predict(test_df, test_density)
+    _, y_test_std = model.predict_dist(test_df, test_density)
+    y_test = test_df['子评论数'].values
+
+    # 计算评估指标
+    test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
+
+    # 计算NLL
+    test_nll = model.compute_nll(test_df, test_density)
+    test_metrics['test_NLL'] = test_nll
+
+    # 打印结果
+    print(f"\n{'指标':<15} {'值':<12}")
+    print("-" * 30)
+    print(f"{'RMSE':<15} {test_metrics['test_RMSE']:<12.4f}")
+    print(f"{'MAE':<15} {test_metrics['test_MAE']:<12.4f}")
+    print(f"{'MSLE':<15} {test_metrics['test_MSLE']:<12.4f}")
+    print(f"{'R2':<15} {test_metrics['test_R2']:<12.4f}")
+    print(f"{'ACP@20%':<15} {test_metrics['test_ACP@20%']*100:<12.2f}%")
+    print(f"{'ACP@50%':<15} {test_metrics['test_ACP@50%']*100:<12.2f}%")
+
+    print(f"\n【不确定性指标】")
+    print(f"{'NLL':<15} {test_nll:<12.4f}")
+    print(f"{'LogNLL':<15} {test_metrics['test_LogNLL']:<12.4f}")
+    print(f"{'PICP@95%':<15} {test_metrics['test_PICP@95%']*100:<12.2f}%")
+    print(f"{'MPIW@95%':<15} {test_metrics['test_MPIW@95%']:<12.4f}")
+
+    print("\n" + "=" * 60)
+    print("【测试完成】")
+    print("=" * 60)
+
 
 def train(args):
     """主训练流程"""
@@ -55,8 +300,9 @@ def train(args):
     # 获取特征列
     feature_cols = get_feature_cols(feature_groups)
 
+    mode_str = {'train': '仅训练', 'test': '仅测试', 'full': '训练+测试'}[args.mode]
     print("=" * 60)
-    print(f"【训练模型: {args.model}】")
+    print(f"【{mode_str} - 模型: {args.model}】")
     print("=" * 60)
     print(f"特征组: {feature_groups}")
     print(f"特征列 ({len(feature_cols)}个): {feature_cols}")
@@ -148,21 +394,18 @@ def train(args):
     print("\n【评估结果】")
     y_train_pred = model.predict(X_train)
     y_val_pred = model.predict(X_val)
-    y_test_pred = model.predict(X_test)
 
     # NGBoost: 获取不确定性估计
     y_train_std, y_val_std, y_test_std = None, None, None
     if hasattr(model, 'supports_uncertainty') and model.supports_uncertainty:
         _, y_train_std = model.predict_dist(X_train)
         _, y_val_std = model.predict_dist(X_val)
-        _, y_test_std = model.predict_dist(X_test)
 
     # 计算评估指标（包含不确定性指标）
     train_metrics = evaluate(y_train, y_train_pred, prefix='train_', y_std=y_train_std)
     val_metrics = evaluate(y_val, y_val_pred, prefix='val_', y_std=y_val_std)
-    test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
 
-    all_metrics = {**train_metrics, **val_metrics, **test_metrics}
+    all_metrics = {**train_metrics, **val_metrics}
     all_metrics['feature_groups'] = ','.join(feature_groups)
     all_metrics['feature_cols'] = feature_cols
 
@@ -170,19 +413,31 @@ def train(args):
     if hasattr(model, 'supports_uncertainty') and model.supports_uncertainty:
         train_nll = model.compute_nll(X_train, y_train)
         val_nll = model.compute_nll(X_val, y_val)
-        test_nll = model.compute_nll(X_test, y_test)
-
         all_metrics['train_NLL'] = train_nll
         all_metrics['val_NLL'] = val_nll
-        all_metrics['test_NLL'] = test_nll
+
+    # full模式：评估测试集
+    y_test_pred = None
+    test_metrics = {}
+    if args.mode == 'full':
+        y_test_pred = model.predict(X_test)
+        if hasattr(model, 'supports_uncertainty') and model.supports_uncertainty:
+            _, y_test_std = model.predict_dist(X_test)
+        test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
+        all_metrics.update(test_metrics)
+
+        if hasattr(model, 'supports_uncertainty') and model.supports_uncertainty:
+            test_nll = model.compute_nll(X_test, y_test)
+            all_metrics['test_NLL'] = test_nll
 
     # 打印评估结果
     print_metrics(train_metrics, val_metrics, test_metrics, all_metrics,
-                  y_test_std if hasattr(model, 'supports_uncertainty') else None)
+                  y_test_std if hasattr(model, 'supports_uncertainty') and args.mode == 'full' else None)
 
     # 8. 保存结果
     result_dir = get_result_dir(args.model)
-    save_results(result_dir, model, all_metrics, args, X_test, y_test, y_test_pred,
+    save_results(result_dir, model, all_metrics, args, X_test, y_test,
+                 y_test_pred if y_test_pred is not None else np.zeros_like(y_test),
                  y_std=y_test_std, feature_cols=feature_cols)
 
     print("\n" + "=" * 60)
@@ -219,12 +474,10 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print("\n【评估结果】")
     y_train_pred = model.predict(train_df, train_density)
     y_val_pred = model.predict(val_df, val_density)
-    y_test_pred = model.predict(test_df, test_density)
 
     # 获取不确定性估计
     _, y_train_std = model.predict_dist(train_df, train_density)
     _, y_val_std = model.predict_dist(val_df, val_density)
-    _, y_test_std = model.predict_dist(test_df, test_density)
 
     # 获取真实值
     y_train = train_df['子评论数'].values
@@ -234,22 +487,33 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     # 计算评估指标
     train_metrics = evaluate(y_train, y_train_pred, prefix='train_', y_std=y_train_std)
     val_metrics = evaluate(y_val, y_val_pred, prefix='val_', y_std=y_val_std)
-    test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
 
-    all_metrics = {**train_metrics, **val_metrics, **test_metrics}
-    all_metrics['model'] = 'bge_nn'
+    all_metrics = {**train_metrics, **val_metrics}
+    all_metrics['model'] = args.model
     all_metrics['freeze_bert'] = model.freeze_bert
 
     # 添加NLL指标
     train_nll = model.compute_nll(train_df, train_density)
     val_nll = model.compute_nll(val_df, val_density)
-    test_nll = model.compute_nll(test_df, test_density)
     all_metrics['train_NLL'] = train_nll
     all_metrics['val_NLL'] = val_nll
-    all_metrics['test_NLL'] = test_nll
+
+    # full模式：评估测试集
+    y_test_pred = None
+    y_test_std = None
+    test_metrics = {}
+    if args.mode == 'full':
+        y_test_pred = model.predict(test_df, test_density)
+        _, y_test_std = model.predict_dist(test_df, test_density)
+        test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
+        all_metrics.update(test_metrics)
+
+        test_nll = model.compute_nll(test_df, test_density)
+        all_metrics['test_NLL'] = test_nll
 
     # 打印评估结果
-    print_metrics(train_metrics, val_metrics, test_metrics, all_metrics, y_test_std)
+    print_metrics(train_metrics, val_metrics, test_metrics, all_metrics,
+                  y_test_std if args.mode == 'full' else None)
 
     # 保存结果
     result_dir = get_result_dir(args.model)
@@ -287,15 +551,22 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     ax.set_ylabel('NLL Loss')
     ax.legend()
 
-    # 预测效果图
+    # 预测效果图（full模式用测试集，train模式用验证集）
     ax = axes[1]
-    sample_size = min(1000, len(y_test))
-    idx = np.random.choice(len(y_test), sample_size, replace=False)
-    ax.errorbar(y_test[idx], y_test_pred[idx], yerr=y_test_std[idx], fmt='o', alpha=0.3,
+    if args.mode == 'full' and y_test_pred is not None:
+        plot_y_true, plot_y_pred, plot_y_std = y_test, y_test_pred, y_test_std
+        ax_label = '测试集'
+    else:
+        plot_y_true, plot_y_pred, plot_y_std = y_val, y_val_pred, y_val_std
+        ax_label = '验证集'
+
+    sample_size = min(1000, len(plot_y_true))
+    idx = np.random.choice(len(plot_y_true), sample_size, replace=False)
+    ax.errorbar(plot_y_true[idx], plot_y_pred[idx], yerr=plot_y_std[idx], fmt='o', alpha=0.3,
                 markersize=2, elinewidth=0.5, capsize=0)
-    max_val = min(y_test.max(), 100)
+    max_val = min(plot_y_true.max(), 100)
     ax.plot([0, max_val], [0, max_val], 'r--', label='完美预测', linewidth=2)
-    ax.set_xlabel('实际子评论数')
+    ax.set_xlabel(f'实际子评论数 ({ax_label})')
     ax.set_ylabel('预测子评论数')
     ax.set_xlim(0, max_val)
     ax.set_ylim(0, max_val * 0.8)
@@ -314,19 +585,23 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
 
 def print_metrics(train_metrics, val_metrics, test_metrics, all_metrics, y_test_std=None):
     """打印评估指标"""
+    has_test = len(test_metrics) > 0
+
     # 打印基础指标
     print(f"\n{'数据集':<8} {'RMSE':<10} {'MAE':<10} {'MSLE':<10} {'R2':<10}")
     print("-" * 50)
     print(f"{'训练集':<8} {train_metrics['train_RMSE']:<10.4f} {train_metrics['train_MAE']:<10.4f} {train_metrics['train_MSLE']:<10.4f} {train_metrics['train_R2']:<10.4f}")
     print(f"{'验证集':<8} {val_metrics['val_RMSE']:<10.4f} {val_metrics['val_MAE']:<10.4f} {val_metrics['val_MSLE']:<10.4f} {val_metrics['val_R2']:<10.4f}")
-    print(f"{'测试集':<8} {test_metrics['test_RMSE']:<10.4f} {test_metrics['test_MAE']:<10.4f} {test_metrics['test_MSLE']:<10.4f} {test_metrics['test_R2']:<10.4f}")
+    if has_test:
+        print(f"{'测试集':<8} {test_metrics['test_RMSE']:<10.4f} {test_metrics['test_MAE']:<10.4f} {test_metrics['test_MSLE']:<10.4f} {test_metrics['test_R2']:<10.4f}")
 
     # 打印ACP指标
     print(f"\n{'数据集':<8} {'ACP@20%':<12} {'ACP@50%':<12}")
     print("-" * 35)
     print(f"{'训练集':<8} {train_metrics['train_ACP@20%']*100:<12.2f}% {train_metrics['train_ACP@50%']*100:<12.2f}%")
     print(f"{'验证集':<8} {val_metrics['val_ACP@20%']*100:<12.2f}% {val_metrics['val_ACP@50%']*100:<12.2f}%")
-    print(f"{'测试集':<8} {test_metrics['test_ACP@20%']*100:<12.2f}% {test_metrics['test_ACP@50%']*100:<12.2f}%")
+    if has_test:
+        print(f"{'测试集':<8} {test_metrics['test_ACP@20%']*100:<12.2f}% {test_metrics['test_ACP@50%']*100:<12.2f}%")
 
     # 打印不确定性指标（如果有）
     if 'train_NLL' in all_metrics:
@@ -335,7 +610,8 @@ def print_metrics(train_metrics, val_metrics, test_metrics, all_metrics, y_test_
         print("-" * 55)
         print(f"{'训练集':<8} {all_metrics['train_NLL']:<12.4f} {train_metrics['train_LogNLL']:<12.4f} {train_metrics['train_PICP@95%']*100:<12.2f}% {train_metrics['train_MPIW@95%']:<10.4f}")
         print(f"{'验证集':<8} {all_metrics['val_NLL']:<12.4f} {val_metrics['val_LogNLL']:<12.4f} {val_metrics['val_PICP@95%']*100:<12.2f}% {val_metrics['val_MPIW@95%']:<10.4f}")
-        print(f"{'测试集':<8} {all_metrics['test_NLL']:<12.4f} {test_metrics['test_LogNLL']:<12.4f} {test_metrics['test_PICP@95%']*100:<12.2f}% {test_metrics['test_MPIW@95%']:<10.4f}")
+        if has_test and 'test_NLL' in all_metrics:
+            print(f"{'测试集':<8} {all_metrics['test_NLL']:<12.4f} {test_metrics['test_LogNLL']:<12.4f} {test_metrics['test_PICP@95%']*100:<12.2f}% {test_metrics['test_MPIW@95%']:<10.4f}")
 
         if y_test_std is not None:
             print(f"\n预测标准差统计 (log空间):")
@@ -348,6 +624,13 @@ def print_metrics(train_metrics, val_metrics, test_metrics, all_metrics, y_test_
 def parse_args():
     """解析命令行参数"""
     parser = argparse.ArgumentParser(description='评论数预测模型训练')
+
+    # 运行模式
+    parser.add_argument('--mode', type=str, default='full',
+                        choices=['train', 'test', 'full'],
+                        help='运行模式: train(仅训练), test(仅测试), full(训练+测试) (default: full)')
+    parser.add_argument('--checkpoint', type=str, default=None,
+                        help='测试模式时加载的模型路径（目录），如 results/rf_1 (default: None，自动查找最新)')
 
     # 模型选择
     parser.add_argument('--model', type=str, default='rf',
@@ -398,4 +681,9 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    train(args)
+
+    if args.mode == 'test':
+        test_only(args)
+    else:
+        # train 或 full 模式都执行训练流程
+        train(args)

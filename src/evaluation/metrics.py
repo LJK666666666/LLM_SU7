@@ -110,24 +110,51 @@ def compute_picp(y_true, y_pred, y_std, confidence=0.95):
     return np.mean(within_interval)
 
 
-def compute_mpiw(y_std, confidence=0.95):
+def compute_mpiw(y_pred, y_std, confidence=0.95):
     """计算MPIW (Mean Prediction Interval Width)
 
-    MPIW = mean(2 * z * σ)
+    将对数尺度的置信区间映射回原始尺度后计算宽度
+
+    对数空间置信区间: [log(μ+c) - z*σ, log(μ+c) + z*σ]
+    原始空间置信区间: [exp(lower) - c, exp(upper) - c]
+    原始空间宽度: exp(upper) - exp(lower)
 
     参数:
+        y_pred: 预测均值（原始空间）
         y_std: 预测标准差（log空间）
         confidence: 置信水平
 
     返回:
-        平均置信区间宽度（log空间）
+        平均置信区间宽度（原始空间）
     """
     from scipy import stats
 
+    y_pred = np.array(y_pred)
     y_std = np.array(y_std)
+
+    # 确保数值稳定
+    y_pred = np.clip(y_pred, 0, None)
+    y_std = np.clip(y_std, 1e-4, None)
+
+    # z分数
     z = stats.norm.ppf((1 + confidence) / 2)
 
-    return np.mean(2 * z * y_std)
+    # 在log空间计算置信区间
+    log_pred = np.log(y_pred + LOG_OFFSET)
+    lower_log = log_pred - z * y_std
+    upper_log = log_pred + z * y_std
+
+    # 映射回原始空间
+    lower_orig = np.exp(lower_log) - LOG_OFFSET
+    upper_orig = np.exp(upper_log) - LOG_OFFSET
+
+    # 确保下界非负
+    lower_orig = np.clip(lower_orig, 0, None)
+
+    # 计算原始空间的区间宽度
+    width = upper_orig - lower_orig
+
+    return np.mean(width)
 
 
 def evaluate(y_true, y_pred, prefix='', y_std=None):
@@ -165,6 +192,6 @@ def evaluate(y_true, y_pred, prefix='', y_std=None):
         y_std = np.array(y_std)
         metrics[f'{prefix}LogNLL'] = compute_log_nll(y_true, y_pred, y_std)
         metrics[f'{prefix}PICP@95%'] = compute_picp(y_true, y_pred, y_std, confidence=0.95)
-        metrics[f'{prefix}MPIW@95%'] = compute_mpiw(y_std, confidence=0.95)
+        metrics[f'{prefix}MPIW@95%'] = compute_mpiw(y_pred, y_std, confidence=0.95)
 
     return metrics
