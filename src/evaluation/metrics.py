@@ -134,7 +134,8 @@ def compute_mpiw(y_pred, y_std, confidence=0.95):
 
     # 确保数值稳定
     y_pred = np.clip(y_pred, 0, None)
-    y_std = np.clip(y_std, 1e-4, None)
+    # 限制标准差范围，避免极端值导致溢出（log空间标准差超过10已经是极端情况）
+    y_std = np.clip(y_std, 1e-4, 10.0)
 
     # z分数
     z = stats.norm.ppf((1 + confidence) / 2)
@@ -143,6 +144,9 @@ def compute_mpiw(y_pred, y_std, confidence=0.95):
     log_pred = np.log(y_pred + LOG_OFFSET)
     lower_log = log_pred - z * y_std
     upper_log = log_pred + z * y_std
+
+    # 限制upper_log避免exp溢出（exp(50) ≈ 5e21，已经足够大）
+    upper_log = np.clip(upper_log, None, 50.0)
 
     # 映射回原始空间
     lower_orig = np.exp(lower_log) - LOG_OFFSET

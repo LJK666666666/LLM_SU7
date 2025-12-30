@@ -690,8 +690,19 @@ class BGENNModel:
 
         return bert_model
 
-    def fit(self, train_df, val_df, train_density=None, val_density=None):
-        """训练模型"""
+    def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
+            test_df=None, test_density=None):
+        """训练模型
+
+        参数:
+            train_df: 训练数据
+            val_df: 验证数据
+            train_density: 训练集密度特征
+            val_density: 验证集密度特征
+            save_dir: 权重保存目录（如果提供，每个epoch后保存best和last权重）
+            test_df: 测试数据（可选，提前分词以加速评估）
+            test_density: 测试集密度特征
+        """
         from ..data.dataset import CommentDataset
 
         print(f"\n使用设备: {self.device}")
@@ -700,10 +711,21 @@ class BGENNModel:
         # 加载BGE模型
         bert_model = self._load_bge_model()
 
-        # 创建数据集
+        # 创建数据集（一次性完成所有分词）
         print("创建数据集...")
         train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128)
         val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128)
+
+        # 如果提供了测试集，也一并创建（避免评估时重新分词）
+        if test_df is not None:
+            print("创建测试数据集（预分词）...")
+            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128)
+        else:
+            self._test_dataset = None
+
+        # 保存训练/验证数据集供评估使用
+        self._train_dataset = train_dataset
+        self._val_dataset = val_dataset
 
         # 优化的DataLoader配置
         num_workers = min(8, os.cpu_count() or 4)
@@ -844,11 +866,40 @@ class BGENNModel:
 
             scheduler.step(val_loss)
 
+            # 保存 last 权重（每个epoch都保存）
+            if save_dir is not None:
+                last_path = Path(save_dir) / 'model_last.pt'
+                torch.save({
+                    'epoch': epoch + 1,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss,
+                    'train_losses': train_losses,
+                    'val_losses': val_losses,
+                    'best_val_loss': best_val_loss,
+                    'patience_counter': patience_counter,
+                }, last_path)
+
             # Early stopping
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
                 self.best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+
+                # 保存 best 权重
+                if save_dir is not None:
+                    best_path = Path(save_dir) / 'model_best.pt'
+                    torch.save({
+                        'epoch': epoch + 1,
+                        'model_state_dict': self.model.state_dict(),
+                        'train_loss': train_loss,
+                        'val_loss': val_loss,
+                        'train_losses': train_losses,
+                        'val_losses': val_losses,
+                    }, best_path)
+                    print(f"  保存最佳模型 (val_loss={val_loss:.4f})")
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
@@ -914,6 +965,81 @@ class BGENNModel:
                 all_sigma.append(sigma.float().cpu().numpy())
 
         return np.concatenate(all_mu), np.concatenate(all_sigma)
+
+    def evaluate_all(self, df=None, density_df=None, use_cached=None):
+        """一次性评估：返回预测均值、标准差和NLL（避免重复创建Dataset和分词）
+
+        参数:
+            df: DataFrame数据（如果use_cached为None则必须提供）
+            density_df: 密度特征（如果use_cached为None则需要提供）
+            use_cached: 使用缓存的数据集 ('train', 'val', 'test')，如果提供则忽略df和density_df
+        """
+        from ..data.dataset import CommentDataset
+        from contextlib import nullcontext
+
+        # 使用缓存的数据集或创建新的
+        if use_cached is not None:
+            if use_cached == 'train' and hasattr(self, '_train_dataset'):
+                dataset = self._train_dataset
+            elif use_cached == 'val' and hasattr(self, '_val_dataset'):
+                dataset = self._val_dataset
+            elif use_cached == 'test' and hasattr(self, '_test_dataset') and self._test_dataset is not None:
+                dataset = self._test_dataset
+            else:
+                raise ValueError(f"缓存数据集 '{use_cached}' 不存在，请先调用fit并传入相应数据")
+        else:
+            dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+
+        # 推理时可以使用更大的批次
+        eval_batch_size = self.batch_size * 2
+        num_workers = min(4, os.cpu_count() or 2)
+        loader = DataLoader(
+            dataset,
+            batch_size=eval_batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True if self.device.type == 'cuda' else False
+        )
+
+        if self.use_bf16:
+            autocast_ctx = torch.autocast(device_type='cuda', dtype=torch.bfloat16)
+        else:
+            autocast_ctx = nullcontext()
+
+        self.model.eval()
+        all_mu = []
+        all_sigma = []
+        total_nll = 0
+        count = 0
+
+        with torch.no_grad():
+            for batch in loader:
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                with autocast_ctx:
+                    mu, sigma = self.model(
+                        batch['comment_ids'], batch['comment_mask'],
+                        batch['weibo_ids'], batch['weibo_mask'],
+                        batch['root_ids'], batch['root_mask'],
+                        batch['parent_ids'], batch['parent_mask'],
+                        batch['numeric_features'],
+                        batch.get('special_ids'), batch.get('special_mask')
+                    )
+                    loss = nll_loss(batch['target'], mu, sigma)
+
+                total_nll += loss.item() * len(batch['target'])
+                count += len(batch['target'])
+
+                mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
+                mu_orig = torch.clamp(mu_orig, min=0)
+                all_mu.append(mu_orig.cpu().numpy())
+                all_sigma.append(sigma.float().cpu().numpy())
+
+        y_pred = np.concatenate(all_mu)
+        y_std = np.concatenate(all_sigma)
+        nll = total_nll / count
+
+        return y_pred, y_std, nll
 
     def compute_nll(self, df, density_df=None):
         """计算NLL损失"""
@@ -1058,8 +1184,19 @@ class BGEMiniModel:
 
         return bert_model
 
-    def fit(self, train_df, val_df, train_density=None, val_density=None):
-        """训练模型"""
+    def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
+            test_df=None, test_density=None):
+        """训练模型
+
+        参数:
+            train_df: 训练数据
+            val_df: 验证数据
+            train_density: 训练集密度特征
+            val_density: 验证集密度特征
+            save_dir: 权重保存目录（如果提供，每个epoch后保存best和last权重）
+            test_df: 测试数据（可选，提前分词以加速评估）
+            test_density: 测试集密度特征
+        """
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
@@ -1071,10 +1208,21 @@ class BGEMiniModel:
         # 加载BGE模型
         bert_model = self._load_bge_model()
 
-        # 创建数据集
+        # 创建数据集（一次性完成所有分词）
         print("创建数据集...")
         train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128)
         val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128)
+
+        # 如果提供了测试集，也一并创建（避免评估时重新分词）
+        if test_df is not None:
+            print("创建测试数据集（预分词）...")
+            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128)
+        else:
+            self._test_dataset = None
+
+        # 保存训练/验证数据集供评估使用
+        self._train_dataset = train_dataset
+        self._val_dataset = val_dataset
 
         # DataLoader配置
         num_workers = min(8, os.cpu_count() or 4)
@@ -1203,11 +1351,40 @@ class BGEMiniModel:
 
             scheduler.step(val_loss)
 
+            # 保存 last 权重（每个epoch都保存）
+            if save_dir is not None:
+                last_path = Path(save_dir) / 'model_last.pt'
+                torch.save({
+                    'epoch': epoch + 1,
+                    'model_state_dict': self.model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'train_loss': train_loss,
+                    'val_loss': val_loss,
+                    'train_losses': train_losses,
+                    'val_losses': val_losses,
+                    'best_val_loss': best_val_loss,
+                    'patience_counter': patience_counter,
+                }, last_path)
+
             # Early stopping
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 patience_counter = 0
                 self.best_state = {k: v.cpu().clone() for k, v in self.model.state_dict().items()}
+
+                # 保存 best 权重
+                if save_dir is not None:
+                    best_path = Path(save_dir) / 'model_best.pt'
+                    torch.save({
+                        'epoch': epoch + 1,
+                        'model_state_dict': self.model.state_dict(),
+                        'train_loss': train_loss,
+                        'val_loss': val_loss,
+                        'train_losses': train_losses,
+                        'val_losses': val_losses,
+                    }, best_path)
+                    print(f"  保存最佳模型 (val_loss={val_loss:.4f})")
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
@@ -1271,6 +1448,81 @@ class BGEMiniModel:
                 all_sigma.append(sigma.float().cpu().numpy())
 
         return np.concatenate(all_mu), np.concatenate(all_sigma)
+
+    def evaluate_all(self, df=None, density_df=None, use_cached=None):
+        """一次性评估：返回预测均值、标准差和NLL（避免重复创建Dataset和分词）
+
+        参数:
+            df: DataFrame数据（如果use_cached为None则必须提供）
+            density_df: 密度特征（如果use_cached为None则需要提供）
+            use_cached: 使用缓存的数据集 ('train', 'val', 'test')，如果提供则忽略df和density_df
+        """
+        from ..data.dataset import CommentDataset
+        from contextlib import nullcontext
+
+        # 使用缓存的数据集或创建新的
+        if use_cached is not None:
+            if use_cached == 'train' and hasattr(self, '_train_dataset'):
+                dataset = self._train_dataset
+            elif use_cached == 'val' and hasattr(self, '_val_dataset'):
+                dataset = self._val_dataset
+            elif use_cached == 'test' and hasattr(self, '_test_dataset') and self._test_dataset is not None:
+                dataset = self._test_dataset
+            else:
+                raise ValueError(f"缓存数据集 '{use_cached}' 不存在，请先调用fit并传入相应数据")
+        else:
+            dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+
+        # 推理时可以使用更大的批次
+        eval_batch_size = self.batch_size * 2
+        num_workers = min(4, os.cpu_count() or 2)
+        loader = DataLoader(
+            dataset,
+            batch_size=eval_batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True if self.device.type == 'cuda' else False
+        )
+
+        if self.use_bf16:
+            autocast_ctx = torch.autocast(device_type='cuda', dtype=torch.bfloat16)
+        else:
+            autocast_ctx = nullcontext()
+
+        self.model.eval()
+        all_mu = []
+        all_sigma = []
+        total_nll = 0
+        count = 0
+
+        with torch.no_grad():
+            for batch in loader:
+                batch = {k: v.to(self.device) for k, v in batch.items()}
+
+                with autocast_ctx:
+                    mu, sigma = self.model(
+                        batch['comment_ids'], batch['comment_mask'],
+                        batch['weibo_ids'], batch['weibo_mask'],
+                        batch['root_ids'], batch['root_mask'],
+                        batch['parent_ids'], batch['parent_mask'],
+                        batch['numeric_features'],
+                        batch.get('special_ids'), batch.get('special_mask')
+                    )
+                    loss = nll_loss(batch['target'], mu, sigma)
+
+                total_nll += loss.item() * len(batch['target'])
+                count += len(batch['target'])
+
+                mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
+                mu_orig = torch.clamp(mu_orig, min=0)
+                all_mu.append(mu_orig.cpu().numpy())
+                all_sigma.append(sigma.float().cpu().numpy())
+
+        y_pred = np.concatenate(all_mu)
+        y_std = np.concatenate(all_sigma)
+        nll = total_nll / count
+
+        return y_pred, y_std, nll
 
     def compute_nll(self, df, density_df=None):
         """计算NLL损失"""

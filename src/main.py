@@ -465,19 +465,26 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print(f"  Batch Size: {model.batch_size}")
     print(f"  学习率: {model.learning_rate}")
 
-    # 训练
+    # 创建结果目录（用于保存训练过程中的权重）
+    result_dir = get_result_dir(args.model)
+    print(f"\n结果保存目录: {result_dir}")
+
+    # 训练（传入save_dir以便每个epoch保存权重）
+    # full模式下同时传入测试集，提前分词避免评估时重复分词
     print("\n【训练中...】")
-    model.fit(train_df, val_df, train_density, val_density)
+    if args.mode == 'full':
+        model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
+                  test_df=test_df, test_density=test_density)
+    else:
+        model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir)
     print("训练完成!")
 
-    # 评估
+    # 评估（使用缓存的数据集，无需重新分词）
     print("\n【评估结果】")
-    y_train_pred = model.predict(train_df, train_density)
-    y_val_pred = model.predict(val_df, val_density)
 
-    # 获取不确定性估计
-    _, y_train_std = model.predict_dist(train_df, train_density)
-    _, y_val_std = model.predict_dist(val_df, val_density)
+    # 使用 evaluate_all 方法一次性获取所有评估指标
+    y_train_pred, y_train_std, train_nll = model.evaluate_all(use_cached='train')
+    y_val_pred, y_val_std, val_nll = model.evaluate_all(use_cached='val')
 
     # 获取真实值
     y_train = train_df['子评论数'].values
@@ -493,39 +500,33 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     all_metrics['freeze_bert'] = model.freeze_bert
 
     # 添加NLL指标
-    train_nll = model.compute_nll(train_df, train_density)
-    val_nll = model.compute_nll(val_df, val_density)
     all_metrics['train_NLL'] = train_nll
     all_metrics['val_NLL'] = val_nll
 
-    # full模式：评估测试集
+    # full模式：评估测试集（使用缓存的数据集）
     y_test_pred = None
     y_test_std = None
     test_metrics = {}
     if args.mode == 'full':
-        y_test_pred = model.predict(test_df, test_density)
-        _, y_test_std = model.predict_dist(test_df, test_density)
+        y_test_pred, y_test_std, test_nll = model.evaluate_all(use_cached='test')
         test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
         all_metrics.update(test_metrics)
-
-        test_nll = model.compute_nll(test_df, test_density)
         all_metrics['test_NLL'] = test_nll
 
     # 打印评估结果
     print_metrics(train_metrics, val_metrics, test_metrics, all_metrics,
                   y_test_std if args.mode == 'full' else None)
 
-    # 保存结果
-    result_dir = get_result_dir(args.model)
+    # 保存结果（result_dir 已在训练前创建）
 
-    # 保存模型
+    # 保存最终模型（覆盖训练过程中的 model_best.pt）
     model_path = result_dir / 'model.pt'
     torch.save({
         'model_state_dict': model.model.state_dict(),
         'train_losses': model.train_losses,
         'val_losses': model.val_losses,
     }, model_path)
-    print(f"\n模型已保存: {model_path}")
+    print(f"\n最终模型已保存: {model_path}")
 
     # 保存指标
     metrics_path = result_dir / 'metrics.json'
