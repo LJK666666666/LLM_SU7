@@ -43,9 +43,9 @@ REQUEST_DELAY = (0.1, 0.15)  # 请求间隔（秒）
 MAX_RETRIES = 3  # 最大重试次数
 COMMENT_PAGE_SIZE = 5  # 每页评论数
 
-# 快代理隧道代理配置（更简单，自动切换IP）
+# 隧道代理配置（更自动切换IP）
 TUNNEL_PROXY = {
-    'enabled': True,  # 暂时禁用代理
+    'enabled': True,  
     'tunnel': 'd749.kdltps.com:15818',
     'username': 't16682212001679',
     'password': 'mui8c3je',

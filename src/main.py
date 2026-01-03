@@ -9,6 +9,15 @@
     python src/main.py --model xgboost --features all
     python src/main.py --model ngboost --features base,text,density
     python src/main.py --model bge_nn --epochs 30 --batch_size 32
+
+消融实验：
+    python src/main.py --model bge_nn --ablation no_cross_attn    # w/o Cross-Attention
+    python src/main.py --model bge_nn --ablation no_density       # w/o 重复特征
+    python src/main.py --model bge_nn --ablation no_context       # w/o 上下文（只使用评论文本）
+    python src/main.py --model bge_nn --ablation std_nll          # w/o Log NLL (Standard NLL)
+
+    # 或使用单独参数组合多个消融
+    python src/main.py --model bge_nn --no_cross_attention --no_density
 """
 
 import argparse
@@ -235,10 +244,10 @@ def test_only(args):
     # 打印结果
     print(f"\n{'指标':<15} {'值':<12}")
     print("-" * 30)
-    print(f"{'RMSE':<15} {test_metrics['test_RMSE']:<12.4f}")
+    # print(f"{'RMSE':<15} {test_metrics['test_RMSE']:<12.4f}") # 该指标意义不大
     print(f"{'MAE':<15} {test_metrics['test_MAE']:<12.4f}")
     print(f"{'MSLE':<15} {test_metrics['test_MSLE']:<12.4f}")
-    print(f"{'R2':<15} {test_metrics['test_R2']:<12.4f}")
+    # print(f"{'R2':<15} {test_metrics['test_R2']:<12.4f}") # 该指标无意义
     print(f"{'ACP@20%':<15} {test_metrics['test_ACP@20%']*100:<12.2f}%")
     print(f"{'ACP@50%':<15} {test_metrics['test_ACP@50%']*100:<12.2f}%")
 
@@ -448,6 +457,31 @@ def train(args):
 def train_bge_nn(args, model_cls, train_df, val_df, test_df,
                  train_density, val_density, test_density):
     """BGE神经网络模型训练流程"""
+    # 处理消融实验参数
+    # 快捷方式：--ablation 参数
+    use_cross_attention = True
+    use_context = True
+    use_density_features = True
+    loss_type = args.loss_type
+
+    if args.ablation:
+        if args.ablation == 'no_cross_attn':
+            use_cross_attention = False
+        elif args.ablation == 'no_density':
+            use_density_features = False
+        elif args.ablation == 'no_context':
+            use_context = False
+        elif args.ablation == 'std_nll':
+            loss_type = 'standard_nll'
+
+    # 单独参数也可以覆盖
+    if args.no_cross_attention:
+        use_cross_attention = False
+    if args.no_context:
+        use_context = False
+    if args.no_density:
+        use_density_features = False
+
     model = model_cls(
         freeze_bert=not args.finetune_bge,
         hidden_size=args.hidden_size,
@@ -455,7 +489,12 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
         epochs=args.epochs,
         batch_size=args.batch_size,
         learning_rate=args.nn_learning_rate,
-        patience=args.patience
+        patience=args.patience,
+        # 消融实验参数
+        loss_type=loss_type,
+        use_cross_attention=use_cross_attention,
+        use_context=use_context,
+        use_density_features=use_density_features
     )
     print(f"\n模型: {model.name}")
     print(f"  冻结BGE: {model.freeze_bert}")
@@ -672,6 +711,22 @@ def parse_args():
                         help='Early stopping耐心值 (default: 5)')
     parser.add_argument('--nn_learning_rate', type=float, default=1e-4,
                         help='神经网络学习率，用于bge_nn (default: 1e-4)')
+
+    # 消融实验参数
+    parser.add_argument('--ablation', type=str, default=None,
+                        choices=['no_cross_attn', 'no_density', 'no_context', 'std_nll'],
+                        help='消融实验类型: no_cross_attn(w/o Cross-Attention), '
+                             'no_density(w/o 重复特征), no_context(w/o 上下文), '
+                             'std_nll(w/o Log NLL) (default: None)')
+    parser.add_argument('--loss_type', type=str, default='log_nll',
+                        choices=['log_nll', 'standard_nll'],
+                        help='损失函数类型 (default: log_nll)')
+    parser.add_argument('--no_cross_attention', action='store_true',
+                        help='禁用Cross-Attention (消融实验)')
+    parser.add_argument('--no_context', action='store_true',
+                        help='禁用上下文文本，只使用评论文本 (消融实验)')
+    parser.add_argument('--no_density', action='store_true',
+                        help='禁用时间密度特征 (消融实验)')
 
     # 其他参数
     parser.add_argument('--seed', type=int, default=42,

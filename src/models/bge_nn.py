@@ -470,16 +470,19 @@ class CommentPredictorNN(nn.Module):
     结构:
     1. BGE编码4个文本（评论/微博/根评论/父评论）
     2. 特殊Token嵌入（VIP用户/表情/关键词，可训练，独立于BGE）
-    3. Cross-Attention融合评论与上下文
+    3. Cross-Attention融合评论与上下文（可禁用用于消融实验）
     4. 拼接数值特征和特殊嵌入
     5. 双预测头输出均值和方差
     """
     def __init__(self, bert_model, num_numeric_features, hidden_size=256, dropout=0.1,
-                 freeze_bert=True, use_special_embeddings=True):
+                 freeze_bert=True, use_special_embeddings=True, use_cross_attention=True,
+                 use_context=True):
         super().__init__()
         self.bert = bert_model
         self.freeze_bert = freeze_bert
         self.use_special_embeddings = use_special_embeddings
+        self.use_cross_attention = use_cross_attention  # 消融参数：是否使用Cross-Attention
+        self.use_context = use_context  # 消融参数：是否使用上下文文本（微博/根评论/父评论）
 
         if freeze_bert:
             for param in self.bert.parameters():
@@ -497,8 +500,15 @@ class CommentPredictorNN(nn.Module):
             self.special_embedding = None
             special_dim = 0
 
-        # Cross-Attention融合层
-        self.fusion = CrossAttentionFusion(hidden_size=768, num_heads=8, dropout=dropout)
+        # 文本特征维度（始终使用评论文本）
+        text_dim = 768
+        if use_context:
+            if use_cross_attention:
+                # Cross-Attention融合层
+                self.fusion = CrossAttentionFusion(hidden_size=768, num_heads=8, dropout=dropout)
+            else:
+                # 简单加权平均融合（消融实验：w/o Cross-Attention）
+                self.fusion_weights = nn.Parameter(torch.ones(4) / 4)
 
         # 数值特征投影
         self.numeric_proj = nn.Sequential(
@@ -507,9 +517,9 @@ class CommentPredictorNN(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # 双预测头（输入维度 = 768 + 64 + special_dim）
+        # 双预测头（输入维度 = text_dim + 64 + special_dim）
         self.prediction_head = DualPredictionHead(
-            input_size=768 + 64 + special_dim,
+            input_size=text_dim + 64 + special_dim,
             hidden_size=hidden_size,
             dropout=dropout
         )
@@ -536,29 +546,46 @@ class CommentPredictorNN(nn.Module):
             mu: [batch] 预测均值（log空间）
             sigma: [batch] 预测标准差（log空间）
         """
-        # 编码4个文本
+        features_list = []
+
+        # 始终编码评论文本
         comment_emb = self.encode_text(comment_ids, comment_mask)
-        weibo_emb = self.encode_text(weibo_ids, weibo_mask)
-        root_emb = self.encode_text(root_ids, root_mask)
-        parent_emb = self.encode_text(parent_ids, parent_mask)
 
-        # 堆叠上下文embedding: [batch, 3, 768]
-        context_embs = torch.stack([weibo_emb, root_emb, parent_emb], dim=1)
+        # 上下文文本特征（可选）
+        if self.use_context:
+            # 编码上下文文本
+            weibo_emb = self.encode_text(weibo_ids, weibo_mask)
+            root_emb = self.encode_text(root_ids, root_mask)
+            parent_emb = self.encode_text(parent_ids, parent_mask)
 
-        # Cross-Attention融合
-        text_fused = self.fusion(comment_emb, context_embs)
+            if self.use_cross_attention:
+                # Cross-Attention融合
+                context_embs = torch.stack([weibo_emb, root_emb, parent_emb], dim=1)
+                text_fused = self.fusion(comment_emb, context_embs)
+            else:
+                # 简单加权平均融合（消融实验）
+                weights = F.softmax(self.fusion_weights, dim=0)
+                text_fused = (weights[0] * comment_emb +
+                             weights[1] * weibo_emb +
+                             weights[2] * root_emb +
+                             weights[3] * parent_emb)
+
+            features_list.append(text_fused)
+        else:
+            # 只使用评论文本（消融实验：w/o 上下文）
+            features_list.append(comment_emb)
 
         # 数值特征投影
         numeric_proj = self.numeric_proj(numeric_features)
+        features_list.append(numeric_proj)
 
         # 特殊Token嵌入
         if self.use_special_embeddings and special_ids is not None:
             special_emb = self.special_embedding(special_ids, special_mask)
-            # 拼接所有特征
-            combined = torch.cat([text_fused, numeric_proj, special_emb], dim=1)
-        else:
-            # 拼接文本和数值特征
-            combined = torch.cat([text_fused, numeric_proj], dim=1)
+            features_list.append(special_emb)
+
+        # 拼接所有特征
+        combined = torch.cat(features_list, dim=1)
 
         # 双预测头
         mu, sigma = self.prediction_head(combined)
@@ -593,6 +620,33 @@ def nll_loss(y_true, mu, sigma):
     return nll.mean()
 
 
+def standard_nll_loss(y_true, mu, sigma):
+    """标准NLL损失（原始空间高斯分布）
+
+    L = 0.5 * log(σ²) + (y - μ)² / (2σ²)
+
+    参数:
+        y_true: 真实值（原始空间）
+        mu: 预测均值（原始空间）
+        sigma: 预测标准差（原始空间）
+
+    注意: 此损失函数用于消融实验 (w/o Log NLL)
+    """
+    # 确保y_true非负
+    y_true = torch.clamp(y_true, min=0)
+
+    # 限制sigma范围，避免数值问题
+    sigma = torch.clamp(sigma, min=1e-4, max=1000.0)
+
+    # 限制mu范围
+    mu = torch.clamp(mu, min=0.0, max=10000.0)
+
+    # 计算NLL（原始空间）
+    nll = 0.5 * torch.log(sigma ** 2 + 1e-8) + ((y_true - mu) ** 2) / (2 * sigma ** 2 + 1e-8)
+
+    return nll.mean()
+
+
 # ==================== BGENNModel封装类 ====================
 class BGENNModel:
     """BGE + 神经网络预测模型
@@ -601,9 +655,19 @@ class BGENNModel:
     通过Cross-Attention融合，结合数值特征，双预测头输出均值和方差。
     支持可训练的特殊Token嵌入（VIP用户/表情/关键词）。
     支持BF16混合精度训练（需GPU支持）。
+
+    消融实验参数:
+        loss_type: 损失函数类型 ('log_nll' 或 'standard_nll')
+        use_cross_attention: 是否使用Cross-Attention (w/o Cross-Attention)
+        use_context: 是否使用上下文文本 (w/o 上下文)
+        use_density_features: 是否使用时间密度特征 (w/o 重复特征)
     """
     def __init__(self, freeze_bert=True, hidden_size=256, dropout=0.1,
-                 use_special_embeddings=True, use_bf16=False, **kwargs):
+                 use_special_embeddings=True, use_bf16=False,
+                 # 消融实验参数
+                 loss_type='log_nll', use_cross_attention=True,
+                 use_context=True, use_density_features=True,
+                 **kwargs):
         self.name = 'BGE_NN'
         self.freeze_bert = freeze_bert
         self.hidden_size = hidden_size
@@ -615,6 +679,29 @@ class BGENNModel:
         self.tokenizer = None
         self.supports_uncertainty = True
         self.use_log_target = True
+
+        # 消融实验参数
+        self.loss_type = loss_type  # 'log_nll' 或 'standard_nll'
+        self.use_cross_attention = use_cross_attention  # w/o Cross-Attention
+        self.use_context = use_context  # w/o 上下文
+        self.use_density_features = use_density_features  # w/o 重复特征
+
+        # 根据loss_type调整use_log_target
+        if loss_type == 'standard_nll':
+            self.use_log_target = False
+
+        # 构建消融实验名称后缀
+        ablation_parts = []
+        if not use_cross_attention:
+            ablation_parts.append('no_cross_attn')
+        if not use_context:
+            ablation_parts.append('no_context')
+        if not use_density_features:
+            ablation_parts.append('no_density')
+        if loss_type == 'standard_nll':
+            ablation_parts.append('std_nll')
+        if ablation_parts:
+            self.name = f'BGE_NN_{"_".join(ablation_parts)}'
 
         # 检查BF16支持
         if self.use_bf16:
@@ -708,18 +795,44 @@ class BGENNModel:
         print(f"\n使用设备: {self.device}")
         print(f"冻结BGE: {self.freeze_bert}")
 
-        # 加载BGE模型
+        # 打印消融实验配置
+        if not self.use_cross_attention or not self.use_context or not self.use_density_features or self.loss_type != 'log_nll':
+            print("\n【消融实验配置】")
+            print(f"  使用Cross-Attention: {self.use_cross_attention}")
+            print(f"  使用上下文文本: {self.use_context}")
+            print(f"  使用时间密度特征: {self.use_density_features}")
+            print(f"  损失函数类型: {self.loss_type}")
+
+        # 加载BGE模型（始终需要，因为评论文本需要编码）
         bert_model = self._load_bge_model()
 
         # 创建数据集（一次性完成所有分词）
         print("创建数据集...")
-        train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128)
-        val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128)
+        train_dataset = CommentDataset(
+            train_df, self.tokenizer,
+            train_density if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context
+        )
+        val_dataset = CommentDataset(
+            val_df, self.tokenizer,
+            val_density if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context
+        )
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
         if test_df is not None:
             print("创建测试数据集（预分词）...")
-            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128)
+            self._test_dataset = CommentDataset(
+                test_df, self.tokenizer,
+                test_density if self.use_density_features else None,
+                max_length=128,
+                use_density_features=self.use_density_features,
+                use_context=self.use_context
+            )
         else:
             self._test_dataset = None
 
@@ -754,8 +867,18 @@ class BGENNModel:
             hidden_size=self.hidden_size,
             dropout=self.dropout,
             freeze_bert=self.freeze_bert,
-            use_special_embeddings=self.use_special_embeddings
+            use_special_embeddings=self.use_special_embeddings,
+            use_cross_attention=self.use_cross_attention,  # 消融参数
+            use_context=self.use_context  # 消融参数
         ).to(self.device)
+
+        # 选择损失函数
+        if self.loss_type == 'standard_nll':
+            loss_fn = standard_nll_loss
+            print("使用标准NLL损失函数（原始空间）")
+        else:
+            loss_fn = nll_loss
+            print("使用对数尺度NLL损失函数")
 
         # 打印模型信息
         total_params = sum(p.numel() for p in self.model.parameters())
@@ -813,7 +936,7 @@ class BGENNModel:
                         batch['numeric_features'],
                         batch.get('special_ids'), batch.get('special_mask')
                     )
-                    loss = nll_loss(batch['target'], mu, sigma)
+                    loss = loss_fn(batch['target'], mu, sigma)
 
                 # NaN检测
                 if torch.isnan(loss) or torch.isinf(loss):
@@ -855,7 +978,7 @@ class BGENNModel:
                             batch['numeric_features'],
                             batch.get('special_ids'), batch.get('special_mask')
                         )
-                        loss = nll_loss(batch['target'], mu, sigma)
+                        loss = loss_fn(batch['target'], mu, sigma)
 
                     val_loss += loss.item()
 
@@ -924,7 +1047,13 @@ class BGENNModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
-        dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+        dataset = CommentDataset(
+            df, self.tokenizer,
+            density_df if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context
+        )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
             dataset,
@@ -958,9 +1087,15 @@ class BGENNModel:
                         batch.get('special_ids'), batch.get('special_mask')
                     )
 
-                # 转回原始空间，确保非负（在FP32下进行）
-                mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
-                mu_orig = torch.clamp(mu_orig, min=0)  # 确保预测值非负
+                # 根据损失函数类型决定是否转换
+                if self.loss_type == 'log_nll':
+                    # 转回原始空间，确保非负（在FP32下进行）
+                    mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
+                    mu_orig = torch.clamp(mu_orig, min=0)  # 确保预测值非负
+                else:
+                    # 标准NLL：模型直接输出原始空间值
+                    mu_orig = torch.clamp(mu.float(), min=0)
+
                 all_mu.append(mu_orig.cpu().numpy())
                 all_sigma.append(sigma.float().cpu().numpy())
 
@@ -977,6 +1112,9 @@ class BGENNModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
+        # 选择损失函数
+        loss_fn = standard_nll_loss if self.loss_type == 'standard_nll' else nll_loss
+
         # 使用缓存的数据集或创建新的
         if use_cached is not None:
             if use_cached == 'train' and hasattr(self, '_train_dataset'):
@@ -988,7 +1126,13 @@ class BGENNModel:
             else:
                 raise ValueError(f"缓存数据集 '{use_cached}' 不存在，请先调用fit并传入相应数据")
         else:
-            dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+            dataset = CommentDataset(
+                df, self.tokenizer,
+                density_df if self.use_density_features else None,
+                max_length=128,
+                use_density_features=self.use_density_features,
+                use_context=self.use_context
+            )
 
         # 推理时可以使用更大的批次
         eval_batch_size = self.batch_size * 2
@@ -1025,13 +1169,18 @@ class BGENNModel:
                         batch['numeric_features'],
                         batch.get('special_ids'), batch.get('special_mask')
                     )
-                    loss = nll_loss(batch['target'], mu, sigma)
+                    loss = loss_fn(batch['target'], mu, sigma)
 
                 total_nll += loss.item() * len(batch['target'])
                 count += len(batch['target'])
 
-                mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
-                mu_orig = torch.clamp(mu_orig, min=0)
+                # 根据损失函数类型决定是否转换
+                if self.loss_type == 'log_nll':
+                    mu_orig = torch.exp(torch.clamp(mu.float(), max=20.0)) - LOG_OFFSET
+                    mu_orig = torch.clamp(mu_orig, min=0)
+                else:
+                    mu_orig = torch.clamp(mu.float(), min=0)
+
                 all_mu.append(mu_orig.cpu().numpy())
                 all_sigma.append(sigma.float().cpu().numpy())
 
@@ -1046,7 +1195,16 @@ class BGENNModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
-        dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+        # 选择损失函数
+        loss_fn = standard_nll_loss if self.loss_type == 'standard_nll' else nll_loss
+
+        dataset = CommentDataset(
+            df, self.tokenizer,
+            density_df if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context
+        )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 
         # BF16推理上下文
@@ -1072,7 +1230,7 @@ class BGENNModel:
                         batch['numeric_features'],
                         batch.get('special_ids'), batch.get('special_mask')
                     )
-                    loss = nll_loss(batch['target'], mu, sigma)
+                    loss = loss_fn(batch['target'], mu, sigma)
 
                 total_nll += loss.item() * len(batch['target'])
                 count += len(batch['target'])

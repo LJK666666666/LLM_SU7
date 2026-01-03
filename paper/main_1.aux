@@ -1,0 +1,100 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{liu2019sentiment}
+\citation{zhang2020brand}
+\citation{wu2019npa}
+\@writefile{toc}{\contentsline {section}{\numberline {1}引言}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}研究背景}{1}{subsection.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}研究动机}{1}{subsection.1.2}\protected@file@percent }
+\citation{yang2011patterns}
+\citation{bandari2012pulse}
+\citation{deng2020deep}
+\citation{blei2003latent}
+\citation{gal2016uncertainty}
+\citation{blundell2015weight}
+\citation{gal2016dropout}
+\citation{duan2020ngboost}
+\citation{devlin2019bert}
+\citation{liu2019roberta}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}主要贡献}{2}{subsection.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}相关工作}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}社交媒体热度预测}{2}{subsection.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}主题模型}{2}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}概率预测与不确定性估计}{2}{subsection.2.3}\protected@file@percent }
+\citation{bge2023}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4}文本表示与预训练语言模型}{3}{subsection.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}数据集构建}{3}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}数据采集}{3}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}数据清洗与预处理}{3}{subsection.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}数据集划分}{3}{subsection.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}评论文本重复数据处理}{3}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4}方法}{3}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}特征工程}{4}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}基础统计特征（7维）}{4}{subsubsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}文本特征（6维）}{4}{subsubsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.3}LDA主题特征（1维）}{4}{subsubsection.4.1.3}\protected@file@percent }
+\citation{broder1997resemblance}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.4}重复程度特征（3维）}{5}{subsubsection.4.1.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces 评论文案重复出现情况}}{5}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:duplicate_find}{{1}{5}{评论文案重复出现情况}{figure.caption.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces 首次发布和跟风发布的指标对比}}{5}{table.caption.2}\protected@file@percent }
+\newlabel{tab:12compare}{{1}{5}{首次发布和跟风发布的指标对比}{table.caption.2}{}}
+\citation{duan2020ngboost}
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces 重复程度检索结果示例}}{6}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:duplicate_detect}{{2}{6}{重复程度检索结果示例}{figure.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}不确定性估计的重要性}{6}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}基线方法：NGBoost概率预测模型}{6}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.4}对数尺度下NLL损失函数}{6}{subsection.4.4}\protected@file@percent }
+\newlabel{eq:nll_loss}{{1}{6}{对数尺度下NLL损失函数}{equation.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces 平滑常数$c$对不同量级预测误差的影响}}{6}{table.caption.5}\protected@file@percent }
+\newlabel{tab:smoothing_constant}{{2}{6}{平滑常数$c$对不同量级预测误差的影响}{table.caption.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces 转发数、评论数、点赞数分别在原本尺度下和对数尺度下的数据分布图}}{7}{figure.caption.4}\protected@file@percent }
+\newlabel{fig:log_distribution}{{3}{7}{转发数、评论数、点赞数分别在原本尺度下和对数尺度下的数据分布图}{figure.caption.4}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.4.1}模型配置}{7}{subsubsection.4.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces NGBoost模型配置}}{7}{table.caption.6}\protected@file@percent }
+\newlabel{tab:ngboost_config}{{3}{7}{NGBoost模型配置}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.5}本文方法：BGE-Attention模型}{8}{subsection.4.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces BGE-Attention模型架构}}{8}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:bge_arch}{{4}{8}{BGE-Attention模型架构}{figure.caption.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5}{\ignorespaces BGE-Attention模型架构}}{8}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:neural_networks}{{5}{8}{BGE-Attention模型架构}{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.1}文本预处理}{8}{subsubsection.4.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.2}文本编码}{8}{subsubsection.4.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.3}Cross-Attention融合}{9}{subsubsection.4.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.5.4}双预测头}{9}{subsubsection.4.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.6}评价指标}{9}{subsection.4.6}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.1}预测精度指标}{9}{subsubsection.4.6.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.6.2}不确定性校准指标}{10}{subsubsection.4.6.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}实验}{10}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}实验设置}{10}{subsection.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}实验结果}{10}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.1}基线方法NGBoost性能}{10}{subsubsection.5.2.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces NGBoost基线模型实验结果}}{10}{table.caption.9}\protected@file@percent }
+\newlabel{tab:ngboost_results}{{4}{10}{NGBoost基线模型实验结果}{table.caption.9}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.2}BGE-Attention模型性能}{11}{subsubsection.5.2.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces BGE-Attention模型实验结果}}{11}{table.caption.10}\protected@file@percent }
+\newlabel{tab:bge_results}{{5}{11}{BGE-Attention模型实验结果}{table.caption.10}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {5.2.3}特征重要性分析}{11}{subsubsection.5.2.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {6}{\ignorespaces 特征重要性（Top 10）}}{11}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:factor_impact}{{6}{11}{特征重要性（Top 10）}{figure.caption.11}{}}
+\bibstyle{plain}
+\bibcite{liu2019sentiment}{1}
+\bibcite{zhang2020brand}{2}
+\bibcite{wu2019npa}{3}
+\bibcite{yang2011patterns}{4}
+\bibcite{bandari2012pulse}{5}
+\bibcite{deng2020deep}{6}
+\bibcite{gal2016uncertainty}{7}
+\bibcite{blundell2015weight}{8}
+\bibcite{gal2016dropout}{9}
+\bibcite{duan2020ngboost}{10}
+\@writefile{toc}{\contentsline {section}{\numberline {6}结论}{12}{section.6}\protected@file@percent }
+\bibcite{devlin2019bert}{11}
+\bibcite{liu2019roberta}{12}
+\bibcite{bge2023}{13}
+\bibcite{blei2003latent}{14}
+\bibcite{broder1997resemblance}{15}
+\gdef \@abspage@last{13}

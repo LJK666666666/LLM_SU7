@@ -13,13 +13,26 @@ from ..models.bge_nn import preprocess_text_for_bge, extract_special_token_ids
 class CommentDataset(Dataset):
     """评论预测数据集（优化版：预先Tokenize并缓存到内存）"""
 
-    def __init__(self, df, tokenizer, density_df=None, max_length=128, max_special_tokens=20):
+    def __init__(self, df, tokenizer, density_df=None, max_length=128, max_special_tokens=20,
+                 use_density_features=True, use_context=True):
+        """
+        参数:
+            df: 原始数据DataFrame
+            tokenizer: BGE tokenizer
+            density_df: 时间密度特征DataFrame（可选）
+            max_length: 文本最大长度
+            max_special_tokens: 特殊token最大数量
+            use_density_features: 是否使用时间密度特征（消融实验：w/o 重复特征）
+            use_context: 是否使用上下文文本（消融实验：w/o 上下文）
+        """
         self.df = df.reset_index(drop=True)
         self.max_length = max_length
         self.max_special_tokens = max_special_tokens
+        self.use_density_features = use_density_features  # 消融参数
+        self.use_context = use_context  # 消融参数
 
-        # 合并时间密度特征
-        if density_df is not None:
+        # 合并时间密度特征（如果提供且启用）
+        if density_df is not None and use_density_features:
             self.df = self.df.merge(density_df, on='序号', how='left')
             self.df['时间顺序索引'] = self.df['时间顺序索引'].fillna(0)
             self.df['最大相似度'] = self.df['最大相似度'].fillna(0)
@@ -33,49 +46,66 @@ class CommentDataset(Dataset):
         # 准备数值特征
         self._prepare_numeric_features()
 
-        # 核心优化：批量预处理文本（预先Tokenize）
-        print("  正在预处理文本数据 (Tokenization)...")
+        # 文本预处理
+        if tokenizer is not None:
+            # 核心优化：批量预处理文本（预先Tokenize）
+            print("  正在预处理文本数据 (Tokenization)...")
 
-        def batch_encode(texts):
-            """批量编码文本，返回Tensor"""
-            clean_texts = [preprocess_text_for_bge(str(t)) if t else "空" for t in texts]
+            def batch_encode(texts):
+                """批量编码文本，返回Tensor"""
+                clean_texts = [preprocess_text_for_bge(str(t)) if t else "空" for t in texts]
 
-            all_ids = []
-            all_masks = []
-            for text in tqdm(clean_texts, desc="    Tokenizing", leave=False):
-                if not text or text == "":
-                    text = "空"
-                encoded = tokenizer.encode(text)
-                ids = encoded.ids[:max_length]
-                pad_len = max_length - len(ids)
-                mask = [1.0] * len(ids) + [0.0] * pad_len
-                ids = ids + [0] * pad_len
+                all_ids = []
+                all_masks = []
+                for text in tqdm(clean_texts, desc="    Tokenizing", leave=False):
+                    if not text or text == "":
+                        text = "空"
+                    encoded = tokenizer.encode(text)
+                    ids = encoded.ids[:max_length]
+                    pad_len = max_length - len(ids)
+                    mask = [1.0] * len(ids) + [0.0] * pad_len
+                    ids = ids + [0] * pad_len
 
-                all_ids.append(ids)
-                all_masks.append(mask)
+                    all_ids.append(ids)
+                    all_masks.append(mask)
 
-            return (torch.tensor(all_ids, dtype=torch.long),
-                    torch.tensor(all_masks, dtype=torch.float))
+                return (torch.tensor(all_ids, dtype=torch.long),
+                        torch.tensor(all_masks, dtype=torch.float))
 
-        # 对四列文本分别处理
-        print("    处理评论文案...")
-        self.comment_data = batch_encode(self.df['评论文案'].fillna(''))
-        print("    处理微博文案...")
-        self.weibo_data = batch_encode(self.df['微博文案'].fillna(''))
-        print("    处理根评论文案...")
-        self.root_data = batch_encode(self.df['根评论文案'].fillna(''))
-        print("    处理父评论文案...")
-        self.parent_data = batch_encode(self.df['父评论文案'].fillna(''))
+            # 始终处理评论文案
+            print("    处理评论文案...")
+            self.comment_data = batch_encode(self.df['评论文案'].fillna(''))
 
-        # 提取特殊Token ID
-        print("    提取特殊Token ID (VIP用户/表情/关键词)...")
-        self._prepare_special_token_ids()
+            # 上下文文本（消融实验可选）
+            n_samples = len(self.df)
+            if use_context:
+                print("    处理微博文案...")
+                self.weibo_data = batch_encode(self.df['微博文案'].fillna(''))
+                print("    处理根评论文案...")
+                self.root_data = batch_encode(self.df['根评论文案'].fillna(''))
+                print("    处理父评论文案...")
+                self.parent_data = batch_encode(self.df['父评论文案'].fillna(''))
+            else:
+                # 不使用上下文（消融实验：w/o 上下文）
+                print("    跳过上下文文本预处理（消融实验: w/o 上下文）")
+                self.weibo_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
+                                  torch.zeros(n_samples, max_length, dtype=torch.float))
+                self.root_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
+                                 torch.zeros(n_samples, max_length, dtype=torch.float))
+                self.parent_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
+                                   torch.zeros(n_samples, max_length, dtype=torch.float))
+
+            # 提取特殊Token ID
+            print("    提取特殊Token ID (VIP用户/表情/关键词)...")
+            self._prepare_special_token_ids()
+
+            print("  文本预处理完成，已缓存至内存。")
+        else:
+            raise ValueError("tokenizer 不能为 None，评论文本始终需要编码")
 
         # 目标变量和数值特征转为Tensor
         self.targets = torch.tensor(self.df['子评论数'].values.astype(np.float32), dtype=torch.float)
         self.numeric_features_tensor = torch.tensor(self.numeric_features, dtype=torch.float)
-
-        print("  文本预处理完成，已缓存至内存。")
 
     def _prepare_special_token_ids(self):
         """从所有文本中提取特殊Token ID并创建Tensor"""
@@ -126,20 +156,8 @@ class CommentDataset(Dataset):
         weekday_sin = np.sin(2 * np.pi * weekday / 7)
         weekday_cos = np.cos(2 * np.pi * weekday / 7)
 
-        # 时间顺序索引（标准化）
-        time_idx = self.df.get('时间顺序索引', pd.Series([0] * len(self.df))).values
-        time_idx = (time_idx - time_idx.mean()) / (time_idx.std() + 1e-8)
-
-        # 最大相似度
-        max_sim = self.df.get('最大相似度', pd.Series([0] * len(self.df))).values
-
-        # 重复次数（log变换，确保非负）
-        repeat_raw = self.df.get('重复次数', pd.Series([0] * len(self.df))).values
-        repeat_raw = np.clip(repeat_raw, 0, None)  # 确保非负
-        repeat_count = np.log1p(repeat_raw)
-
-        # 合并所有数值特征
-        self.numeric_features = np.column_stack([
+        # 基础特征列表
+        feature_list = [
             user_comments,
             is_verified,
             is_first_level,
@@ -147,10 +165,26 @@ class CommentDataset(Dataset):
             hour_cos,
             weekday_sin,
             weekday_cos,
-            time_idx,
-            max_sim,
-            repeat_count,
-        ]).astype(np.float32)
+        ]
+
+        # 时间密度特征（消融实验可选）
+        if self.use_density_features:
+            # 时间顺序索引（标准化）
+            time_idx = self.df.get('时间顺序索引', pd.Series([0] * len(self.df))).values
+            time_idx = (time_idx - time_idx.mean()) / (time_idx.std() + 1e-8)
+
+            # 最大相似度
+            max_sim = self.df.get('最大相似度', pd.Series([0] * len(self.df))).values
+
+            # 重复次数（log变换，确保非负）
+            repeat_raw = self.df.get('重复次数', pd.Series([0] * len(self.df))).values
+            repeat_raw = np.clip(repeat_raw, 0, None)  # 确保非负
+            repeat_count = np.log1p(repeat_raw)
+
+            feature_list.extend([time_idx, max_sim, repeat_count])
+
+        # 合并所有数值特征
+        self.numeric_features = np.column_stack(feature_list).astype(np.float32)
 
         # 检查并替换NaN和Inf
         self.numeric_features = np.nan_to_num(self.numeric_features, nan=0.0, posinf=0.0, neginf=0.0)

@@ -181,10 +181,10 @@ def evaluate(y_true, y_pred, prefix='', y_std=None):
     metrics = {}
 
     # 基础指标
-    metrics[f'{prefix}MSE'] = mean_squared_error(y_true, y_pred)
-    metrics[f'{prefix}RMSE'] = np.sqrt(metrics[f'{prefix}MSE'])
+    # metrics[f'{prefix}MSE'] = mean_squared_error(y_true, y_pred)
+    # metrics[f'{prefix}RMSE'] = np.sqrt(metrics[f'{prefix}MSE'])
     metrics[f'{prefix}MAE'] = mean_absolute_error(y_true, y_pred)
-    metrics[f'{prefix}R2'] = r2_score(y_true, y_pred)
+    # metrics[f'{prefix}R2'] = r2_score(y_true, y_pred)
     metrics[f'{prefix}MSLE'] = compute_msle(y_true, y_pred)
 
     # ACP指标（多个阈值）
