@@ -18,6 +18,9 @@
 
     # 或使用单独参数组合多个消融
     python src/main.py --model bge_nn --no_cross_attention --no_density
+
+指定输出目录：
+    python src/main.py --model bge_nn --output_dir results/my_experiment
 """
 
 import argparse
@@ -444,7 +447,11 @@ def train(args):
                   y_test_std if hasattr(model, 'supports_uncertainty') and args.mode == 'full' else None)
 
     # 8. 保存结果
-    result_dir = get_result_dir(args.model)
+    if args.output_dir:
+        result_dir = Path(args.output_dir)
+        result_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        result_dir = get_result_dir(args.model)
     save_results(result_dir, model, all_metrics, args, X_test, y_test,
                  y_test_pred if y_test_pred is not None else np.zeros_like(y_test),
                  y_std=y_test_std, feature_cols=feature_cols)
@@ -505,7 +512,11 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print(f"  学习率: {model.learning_rate}")
 
     # 创建结果目录（用于保存训练过程中的权重）
-    result_dir = get_result_dir(args.model)
+    if args.output_dir:
+        result_dir = Path(args.output_dir)
+        result_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        result_dir = get_result_dir(args.model)
     print(f"\n结果保存目录: {result_dir}")
 
     # 训练（传入save_dir以便每个epoch保存权重）
@@ -732,6 +743,8 @@ def parse_args():
                         help='禁用时间密度特征 (消融实验)')
 
     # 其他参数
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help='指定结果保存目录路径（如不指定则自动生成）')
     parser.add_argument('--seed', type=int, default=42,
                         help='随机种子 (default: 42)')
 
