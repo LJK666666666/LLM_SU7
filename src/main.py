@@ -530,9 +530,12 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     y_val = val_df['子评论数'].values
     y_test = test_df['子评论数'].values
 
+    # 根据 loss_type 确定 sigma_space
+    sigma_space = 'original' if model.loss_type == 'standard_nll' else 'log'
+
     # 计算评估指标
-    train_metrics = evaluate(y_train, y_train_pred, prefix='train_', y_std=y_train_std)
-    val_metrics = evaluate(y_val, y_val_pred, prefix='val_', y_std=y_val_std)
+    train_metrics = evaluate(y_train, y_train_pred, prefix='train_', y_std=y_train_std, sigma_space=sigma_space)
+    val_metrics = evaluate(y_val, y_val_pred, prefix='val_', y_std=y_val_std, sigma_space=sigma_space)
 
     all_metrics = {**train_metrics, **val_metrics}
     all_metrics['model'] = args.model
@@ -548,7 +551,7 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     test_metrics = {}
     if args.mode == 'full':
         y_test_pred, y_test_std, test_nll = model.evaluate_all(use_cached='test')
-        test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
+        test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std, sigma_space=sigma_space)
         all_metrics.update(test_metrics)
         all_metrics['test_NLL'] = test_nll
 
