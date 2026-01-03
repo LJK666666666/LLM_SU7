@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "created_at": "2026-01-03T22:57:25.724826",
+  "n_unique_texts": 248557,
+  "max_length": 128,
+  "data_files": [
+    "D:\\010_CodePrograms\\L\\LLM_su7\\train.pkl",
+    "D:\\010_CodePrograms\\L\\LLM_su7\\val.pkl",
+    "D:\\010_CodePrograms\\L\\LLM_su7\\test.pkl"
+  ]
+}

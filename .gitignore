@@ -20,3 +20,5 @@ test_time_density.pkl
 
 results/comment_pred_bge_mini_1/model.pt
 
+cache/tokenized_texts.pt
+

@@ -779,7 +779,7 @@ class BGENNModel:
         return bert_model
 
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
-            test_df=None, test_density=None):
+            test_df=None, test_density=None, cache_dir=None):
         """训练模型
 
         参数:
@@ -790,6 +790,7 @@ class BGENNModel:
             save_dir: 权重保存目录（如果提供，每个epoch后保存best和last权重）
             test_df: 测试数据（可选，提前分词以加速评估）
             test_density: 测试集密度特征
+            cache_dir: 预分词缓存目录（可选，加速训练）
         """
         from ..data.dataset import CommentDataset
 
@@ -814,14 +815,16 @@ class BGENNModel:
             train_density if self.use_density_features else None,
             max_length=128,
             use_density_features=self.use_density_features,
-            use_context=self.use_context
+            use_context=self.use_context,
+            cache_dir=cache_dir
         )
         val_dataset = CommentDataset(
             val_df, self.tokenizer,
             val_density if self.use_density_features else None,
             max_length=128,
             use_density_features=self.use_density_features,
-            use_context=self.use_context
+            use_context=self.use_context,
+            cache_dir=cache_dir
         )
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
@@ -832,7 +835,8 @@ class BGENNModel:
                 test_density if self.use_density_features else None,
                 max_length=128,
                 use_density_features=self.use_density_features,
-                use_context=self.use_context
+                use_context=self.use_context,
+                cache_dir=cache_dir
             )
         else:
             self._test_dataset = None
@@ -1344,7 +1348,7 @@ class BGEMiniModel:
         return bert_model
 
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
-            test_df=None, test_density=None):
+            test_df=None, test_density=None, cache_dir=None):
         """训练模型
 
         参数:
@@ -1355,6 +1359,7 @@ class BGEMiniModel:
             save_dir: 权重保存目录（如果提供，每个epoch后保存best和last权重）
             test_df: 测试数据（可选，提前分词以加速评估）
             test_density: 测试集密度特征
+            cache_dir: 预分词缓存目录（可选，加速训练）
         """
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
@@ -1369,13 +1374,13 @@ class BGEMiniModel:
 
         # 创建数据集（一次性完成所有分词）
         print("创建数据集...")
-        train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128)
-        val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128)
+        train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128, cache_dir=cache_dir)
+        val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128, cache_dir=cache_dir)
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
         if test_df is not None:
             print("创建测试数据集（预分词）...")
-            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128)
+            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128, cache_dir=cache_dir)
         else:
             self._test_dataset = None
 

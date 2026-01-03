@@ -15,3 +15,17 @@
 
   # 或使用单独参数
   python src/main.py --model bge_nn --no_context
+
+
+
+ # 1. 首次使用：生成缓存（约5分钟）
+ python src/pretokenize.py
+
+ # 2. 训练时使用缓存
+ python src/main.py --model bge_nn --use_cache
+
+ # 3. 或指定缓存路径
+ python src/main.py --model bge_nn --cache_dir cache
+
+ # 4. 不使用缓存（原有方式，完全兼容）
+ python src/main.py --model bge_nn

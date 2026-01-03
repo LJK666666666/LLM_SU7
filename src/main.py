@@ -21,6 +21,10 @@
 
 指定输出目录：
     python src/main.py --model bge_nn --output_dir results/my_experiment
+
+使用预分词缓存（加速训练）：
+    python src/pretokenize.py                    # 首次：生成缓存
+    python src/main.py --model bge_nn --use_cache  # 使用缓存训练
 """
 
 import argparse
@@ -489,6 +493,19 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     if args.no_density:
         use_density_features = False
 
+    # 解析缓存目录
+    cache_dir = None
+    if args.use_cache:
+        from .config import ROOT_DIR
+        cache_dir = ROOT_DIR / 'cache'
+    elif args.cache_dir:
+        cache_dir = Path(args.cache_dir)
+
+    if cache_dir and not (cache_dir / 'tokenized_texts.pt').exists():
+        print(f"警告: 缓存目录 {cache_dir} 不存在或不完整，将使用实时分词")
+        print("提示: 运行 python src/pretokenize.py 生成缓存")
+        cache_dir = None
+
     model = model_cls(
         freeze_bert=not args.finetune_bge,
         hidden_size=args.hidden_size,
@@ -510,6 +527,8 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print(f"  Epochs: {model.epochs}")
     print(f"  Batch Size: {model.batch_size}")
     print(f"  学习率: {model.learning_rate}")
+    if cache_dir:
+        print(f"  预分词缓存: {cache_dir}")
 
     # 创建结果目录（用于保存训练过程中的权重）
     if args.output_dir:
@@ -524,9 +543,10 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print("\n【训练中...】")
     if args.mode == 'full':
         model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
-                  test_df=test_df, test_density=test_density)
+                  test_df=test_df, test_density=test_density, cache_dir=cache_dir)
     else:
-        model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir)
+        model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
+                  cache_dir=cache_dir)
     print("训练完成!")
 
     # 评估（使用缓存的数据集，无需重新分词）
@@ -745,6 +765,10 @@ def parse_args():
     # 其他参数
     parser.add_argument('--output_dir', type=str, default=None,
                         help='指定结果保存目录路径（如不指定则自动生成）')
+    parser.add_argument('--cache_dir', type=str, default=None,
+                        help='预分词缓存目录路径')
+    parser.add_argument('--use_cache', action='store_true',
+                        help='使用默认缓存目录 cache/（等效于 --cache_dir cache）')
     parser.add_argument('--seed', type=int, default=42,
                         help='随机种子 (default: 42)')
 

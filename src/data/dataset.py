@@ -1,9 +1,11 @@
 """
 PyTorch数据集类：用于BGE神经网络模型训练
 """
+import pickle
 import numpy as np
 import pandas as pd
 import torch
+from pathlib import Path
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
@@ -11,19 +13,20 @@ from ..models.bge_nn import preprocess_text_for_bge, extract_special_token_ids
 
 
 class CommentDataset(Dataset):
-    """评论预测数据集（优化版：预先Tokenize并缓存到内存）"""
+    """评论预测数据集（优化版：支持预分词缓存）"""
 
     def __init__(self, df, tokenizer, density_df=None, max_length=128, max_special_tokens=20,
-                 use_density_features=True, use_context=True):
+                 use_density_features=True, use_context=True, cache_dir=None):
         """
         参数:
             df: 原始数据DataFrame
-            tokenizer: BGE tokenizer
+            tokenizer: BGE tokenizer（如果使用缓存可以为None）
             density_df: 时间密度特征DataFrame（可选）
             max_length: 文本最大长度
             max_special_tokens: 特殊token最大数量
             use_density_features: 是否使用时间密度特征（消融实验：w/o 重复特征）
             use_context: 是否使用上下文文本（消融实验：w/o 上下文）
+            cache_dir: 预分词缓存目录路径（如果提供则使用缓存）
         """
         self.df = df.reset_index(drop=True)
         self.max_length = max_length
@@ -46,66 +49,140 @@ class CommentDataset(Dataset):
         # 准备数值特征
         self._prepare_numeric_features()
 
-        # 文本预处理
-        if tokenizer is not None:
-            # 核心优化：批量预处理文本（预先Tokenize）
-            print("  正在预处理文本数据 (Tokenization)...")
-
-            def batch_encode(texts):
-                """批量编码文本，返回Tensor"""
-                clean_texts = [preprocess_text_for_bge(str(t)) if t else "空" for t in texts]
-
-                all_ids = []
-                all_masks = []
-                for text in tqdm(clean_texts, desc="    Tokenizing", leave=False):
-                    if not text or text == "":
-                        text = "空"
-                    encoded = tokenizer.encode(text)
-                    ids = encoded.ids[:max_length]
-                    pad_len = max_length - len(ids)
-                    mask = [1.0] * len(ids) + [0.0] * pad_len
-                    ids = ids + [0] * pad_len
-
-                    all_ids.append(ids)
-                    all_masks.append(mask)
-
-                return (torch.tensor(all_ids, dtype=torch.long),
-                        torch.tensor(all_masks, dtype=torch.float))
-
-            # 始终处理评论文案
-            print("    处理评论文案...")
-            self.comment_data = batch_encode(self.df['评论文案'].fillna(''))
-
-            # 上下文文本（消融实验可选）
-            n_samples = len(self.df)
-            if use_context:
-                print("    处理微博文案...")
-                self.weibo_data = batch_encode(self.df['微博文案'].fillna(''))
-                print("    处理根评论文案...")
-                self.root_data = batch_encode(self.df['根评论文案'].fillna(''))
-                print("    处理父评论文案...")
-                self.parent_data = batch_encode(self.df['父评论文案'].fillna(''))
+        # 文本预处理：优先使用缓存
+        if cache_dir is not None:
+            cache_path = Path(cache_dir)
+            if (cache_path / 'tokenized_texts.pt').exists():
+                self._load_from_cache(cache_path)
+            elif tokenizer is not None:
+                print(f"  警告: 缓存目录 {cache_dir} 不完整，使用实时分词")
+                self._tokenize_texts(tokenizer)
             else:
-                # 不使用上下文（消融实验：w/o 上下文）
-                print("    跳过上下文文本预处理（消融实验: w/o 上下文）")
-                self.weibo_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
-                                  torch.zeros(n_samples, max_length, dtype=torch.float))
-                self.root_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
-                                 torch.zeros(n_samples, max_length, dtype=torch.float))
-                self.parent_data = (torch.zeros(n_samples, max_length, dtype=torch.long),
-                                   torch.zeros(n_samples, max_length, dtype=torch.float))
-
-            # 提取特殊Token ID
-            print("    提取特殊Token ID (VIP用户/表情/关键词)...")
-            self._prepare_special_token_ids()
-
-            print("  文本预处理完成，已缓存至内存。")
+                raise ValueError(f"缓存目录 {cache_dir} 不完整且未提供tokenizer")
+        elif tokenizer is not None:
+            self._tokenize_texts(tokenizer)
         else:
-            raise ValueError("tokenizer 不能为 None，评论文本始终需要编码")
+            raise ValueError("必须提供tokenizer或有效的cache_dir")
 
         # 目标变量和数值特征转为Tensor
         self.targets = torch.tensor(self.df['子评论数'].values.astype(np.float32), dtype=torch.float)
         self.numeric_features_tensor = torch.tensor(self.numeric_features, dtype=torch.float)
+
+    def _load_from_cache(self, cache_dir):
+        """从预分词缓存加载"""
+        print(f"  从缓存加载分词结果: {cache_dir}")
+
+        # 加载缓存文件
+        cache_data = torch.load(cache_dir / 'tokenized_texts.pt')
+        with open(cache_dir / 'text_mapping.pkl', 'rb') as f:
+            mapping = pickle.load(f)
+
+        text_to_idx = mapping['text_to_idx']
+        all_ids = cache_data['input_ids']
+        all_masks = cache_data['attention_mask']
+
+        # 默认索引（用于未找到的文本）
+        default_idx = text_to_idx.get("空", 0)
+
+        def get_indices(col_name):
+            """获取文本对应的缓存索引"""
+            texts = self.df[col_name].fillna('')
+            indices = []
+            for t in texts:
+                processed = preprocess_text_for_bge(str(t)) if t else "空"
+                idx = text_to_idx.get(processed, default_idx)
+                indices.append(idx)
+            return indices
+
+        n_samples = len(self.df)
+
+        # 始终加载评论文案
+        print("    加载评论文案缓存...")
+        comment_indices = get_indices('评论文案')
+        self.comment_data = (all_ids[comment_indices].clone(), all_masks[comment_indices].clone())
+
+        # 上下文文本（消融实验可选）
+        if self.use_context:
+            print("    加载微博文案缓存...")
+            weibo_indices = get_indices('微博文案')
+            self.weibo_data = (all_ids[weibo_indices].clone(), all_masks[weibo_indices].clone())
+
+            print("    加载根评论文案缓存...")
+            root_indices = get_indices('根评论文案')
+            self.root_data = (all_ids[root_indices].clone(), all_masks[root_indices].clone())
+
+            print("    加载父评论文案缓存...")
+            parent_indices = get_indices('父评论文案')
+            self.parent_data = (all_ids[parent_indices].clone(), all_masks[parent_indices].clone())
+        else:
+            # 不使用上下文（消融实验：w/o 上下文）
+            print("    跳过上下文文本加载（消融实验: w/o 上下文）")
+            self.weibo_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                              torch.zeros(n_samples, self.max_length, dtype=torch.float))
+            self.root_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                             torch.zeros(n_samples, self.max_length, dtype=torch.float))
+            self.parent_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                               torch.zeros(n_samples, self.max_length, dtype=torch.float))
+
+        # 特殊Token提取（仍然实时计算）
+        print("    提取特殊Token ID (VIP用户/表情/关键词)...")
+        self._prepare_special_token_ids()
+
+        print("  缓存加载完成。")
+
+    def _tokenize_texts(self, tokenizer):
+        """实时分词（原有逻辑）"""
+        print("  正在预处理文本数据 (Tokenization)...")
+
+        def batch_encode(texts):
+            """批量编码文本，返回Tensor"""
+            clean_texts = [preprocess_text_for_bge(str(t)) if t else "空" for t in texts]
+
+            all_ids = []
+            all_masks = []
+            for text in tqdm(clean_texts, desc="    Tokenizing", leave=False):
+                if not text or text == "":
+                    text = "空"
+                encoded = tokenizer.encode(text)
+                ids = encoded.ids[:self.max_length]
+                pad_len = self.max_length - len(ids)
+                mask = [1.0] * len(ids) + [0.0] * pad_len
+                ids = ids + [0] * pad_len
+
+                all_ids.append(ids)
+                all_masks.append(mask)
+
+            return (torch.tensor(all_ids, dtype=torch.long),
+                    torch.tensor(all_masks, dtype=torch.float))
+
+        # 始终处理评论文案
+        print("    处理评论文案...")
+        self.comment_data = batch_encode(self.df['评论文案'].fillna(''))
+
+        # 上下文文本（消融实验可选）
+        n_samples = len(self.df)
+        if self.use_context:
+            print("    处理微博文案...")
+            self.weibo_data = batch_encode(self.df['微博文案'].fillna(''))
+            print("    处理根评论文案...")
+            self.root_data = batch_encode(self.df['根评论文案'].fillna(''))
+            print("    处理父评论文案...")
+            self.parent_data = batch_encode(self.df['父评论文案'].fillna(''))
+        else:
+            # 不使用上下文（消融实验：w/o 上下文）
+            print("    跳过上下文文本预处理（消融实验: w/o 上下文）")
+            self.weibo_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                              torch.zeros(n_samples, self.max_length, dtype=torch.float))
+            self.root_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                             torch.zeros(n_samples, self.max_length, dtype=torch.float))
+            self.parent_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
+                               torch.zeros(n_samples, self.max_length, dtype=torch.float))
+
+        # 提取特殊Token ID
+        print("    提取特殊Token ID (VIP用户/表情/关键词)...")
+        self._prepare_special_token_ids()
+
+        print("  文本预处理完成，已缓存至内存。")
 
     def _prepare_special_token_ids(self):
         """从所有文本中提取特殊Token ID并创建Tensor"""
