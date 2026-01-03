@@ -27,7 +27,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config import BGE_MODEL_PATH, ROOT_DIR
-from src.models.bge_nn import preprocess_text_for_bge
+from src.models.bge_nn import preprocess_text_for_bge, extract_special_token_ids
 
 
 def parse_args():
@@ -42,9 +42,15 @@ def parse_args():
 
 
 def collect_unique_texts(data_files):
-    """收集所有数据文件中的唯一文本"""
+    """收集所有数据文件中的唯一文本
+
+    返回:
+        preprocessed_texts: 预处理后的唯一文本集合（用于分词）
+        raw_texts: 原始唯一文本集合（用于特殊Token提取）
+    """
     text_columns = ['评论文案', '微博文案', '根评论文案', '父评论文案']
-    all_texts = set()
+    preprocessed_texts = set()
+    raw_texts = set()
 
     for file_path in data_files:
         if not file_path.exists():
@@ -56,16 +62,21 @@ def collect_unique_texts(data_files):
 
         for col in text_columns:
             if col in df.columns:
-                # 预处理并收集唯一文本
-                texts = df[col].fillna('').apply(
+                # 收集原始文本
+                raw = df[col].fillna('')
+                raw_texts.update(raw.unique())
+
+                # 收集预处理后的文本（用于分词）
+                processed = raw.apply(
                     lambda t: preprocess_text_for_bge(str(t)) if t else "空"
                 )
-                all_texts.update(texts.unique())
+                preprocessed_texts.update(processed.unique())
 
     # 确保空文本被处理
-    all_texts.add("空")
+    preprocessed_texts.add("空")
+    raw_texts.add("")
 
-    return all_texts
+    return preprocessed_texts, raw_texts
 
 
 def tokenize_texts(texts, tokenizer, max_length):
@@ -92,6 +103,20 @@ def tokenize_texts(texts, tokenizer, max_length):
     )
 
 
+def extract_special_ids_for_texts(raw_texts):
+    """为每个原始文本提取特殊Token ID"""
+    text_to_special_ids = {}
+
+    for text in tqdm(raw_texts, desc="提取特殊Token ID"):
+        if not text:
+            text_to_special_ids[""] = []
+            continue
+        special_ids = extract_special_token_ids(text)
+        text_to_special_ids[text] = special_ids
+
+    return text_to_special_ids
+
+
 def main():
     args = parse_args()
 
@@ -99,6 +124,7 @@ def main():
     output_dir = ROOT_DIR / args.output_dir
     cache_file = output_dir / 'tokenized_texts.pt'
     mapping_file = output_dir / 'text_mapping.pkl'
+    special_ids_file = output_dir / 'special_token_ids.pkl'
     meta_file = output_dir / 'cache_meta.json'
 
     # 检查是否已存在
@@ -121,15 +147,17 @@ def main():
         ROOT_DIR / 'val.pkl',
         ROOT_DIR / 'test.pkl',
     ]
-    all_texts = collect_unique_texts(data_files)
+    preprocessed_texts, raw_texts = collect_unique_texts(data_files)
 
     # 排序保证确定性
-    all_texts = sorted(list(all_texts))
-    print(f"  唯一文本数量: {len(all_texts):,}")
+    preprocessed_texts = sorted(list(preprocessed_texts))
+    raw_texts = sorted(list(raw_texts))
+    print(f"  预处理后唯一文本数量: {len(preprocessed_texts):,}")
+    print(f"  原始唯一文本数量: {len(raw_texts):,}")
 
-    # 2. 创建文本到索引映射
+    # 2. 创建文本到索引映射（预处理后的文本）
     print("\n【步骤2】创建索引映射...")
-    text_to_idx = {text: i for i, text in enumerate(all_texts)}
+    text_to_idx = {text: i for i, text in enumerate(preprocessed_texts)}
     print(f"  映射表大小: {len(text_to_idx):,}")
 
     # 3. 加载tokenizer
@@ -138,14 +166,19 @@ def main():
     tokenizer = Tokenizer.from_file(tokenizer_path)
     print(f"  Tokenizer加载完成: {tokenizer_path}")
 
-    # 4. 批量分词
+    # 4. 批量分词（预处理后的文本）
     print(f"\n【步骤4】批量分词 (max_length={args.max_length})...")
-    input_ids, attention_mask = tokenize_texts(all_texts, tokenizer, args.max_length)
+    input_ids, attention_mask = tokenize_texts(preprocessed_texts, tokenizer, args.max_length)
     print(f"  input_ids shape: {input_ids.shape}")
     print(f"  attention_mask shape: {attention_mask.shape}")
 
-    # 5. 保存缓存
-    print("\n【步骤5】保存缓存文件...")
+    # 5. 提取特殊Token ID（原始文本）
+    print("\n【步骤5】提取特殊Token ID...")
+    text_to_special_ids = extract_special_ids_for_texts(raw_texts)
+    print(f"  特殊Token映射表大小: {len(text_to_special_ids):,}")
+
+    # 6. 保存缓存
+    print("\n【步骤6】保存缓存文件...")
 
     # 保存分词结果
     torch.save({
@@ -161,11 +194,18 @@ def main():
         pickle.dump({'text_to_idx': text_to_idx}, f)
     print(f"  保存: {mapping_file}")
 
+    # 保存特殊Token ID映射
+    with open(special_ids_file, 'wb') as f:
+        pickle.dump({'text_to_special_ids': text_to_special_ids}, f)
+    print(f"  保存: {special_ids_file}")
+    print(f"  文件大小: {special_ids_file.stat().st_size / 1024 / 1024:.2f} MB")
+
     # 保存元信息
     meta = {
-        'version': '1.0',
+        'version': '2.0',  # 版本升级，包含特殊Token缓存
         'created_at': datetime.now().isoformat(),
-        'n_unique_texts': len(all_texts),
+        'n_preprocessed_texts': len(preprocessed_texts),
+        'n_raw_texts': len(raw_texts),
         'max_length': args.max_length,
         'data_files': [str(f) for f in data_files if f.exists()],
     }

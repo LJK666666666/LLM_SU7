@@ -81,6 +81,17 @@ class CommentDataset(Dataset):
         all_ids = cache_data['input_ids']
         all_masks = cache_data['attention_mask']
 
+        # 加载特殊Token ID缓存（如果存在）
+        special_ids_file = cache_dir / 'special_token_ids.pkl'
+        if special_ids_file.exists():
+            with open(special_ids_file, 'rb') as f:
+                special_mapping = pickle.load(f)
+            text_to_special_ids = special_mapping['text_to_special_ids']
+            self._has_special_cache = True
+        else:
+            text_to_special_ids = None
+            self._has_special_cache = False
+
         # 默认索引（用于未找到的文本）
         default_idx = text_to_idx.get("空", 0)
 
@@ -124,11 +135,41 @@ class CommentDataset(Dataset):
             self.parent_data = (torch.zeros(n_samples, self.max_length, dtype=torch.long),
                                torch.zeros(n_samples, self.max_length, dtype=torch.float))
 
-        # 特殊Token提取（仍然实时计算）
-        print("    提取特殊Token ID (VIP用户/表情/关键词)...")
-        self._prepare_special_token_ids()
+        # 特殊Token提取（优先使用缓存）
+        if self._has_special_cache:
+            print("    从缓存加载特殊Token ID...")
+            self._load_special_ids_from_cache(text_to_special_ids)
+        else:
+            print("    提取特殊Token ID (VIP用户/表情/关键词)...")
+            self._prepare_special_token_ids()
 
         print("  缓存加载完成。")
+
+    def _load_special_ids_from_cache(self, text_to_special_ids):
+        """从缓存加载特殊Token ID"""
+        all_special_ids = []
+        all_special_masks = []
+
+        for idx in tqdm(range(len(self.df)), desc="    合并特殊Token", leave=False):
+            row = self.df.iloc[idx]
+            # 从四个文本字段获取特殊token并合并
+            special_ids = set()
+            for col in ['评论文案', '微博文案', '根评论文案', '父评论文案']:
+                text = str(row.get(col, '')) if row.get(col, '') else ''
+                ids = text_to_special_ids.get(text, [])
+                special_ids.update(ids)
+
+            # 转为列表并截断/填充
+            special_ids = list(special_ids)[:self.max_special_tokens]
+            pad_len = self.max_special_tokens - len(special_ids)
+            mask = [1.0] * len(special_ids) + [0.0] * pad_len
+            special_ids = special_ids + [0] * pad_len  # 用0填充
+
+            all_special_ids.append(special_ids)
+            all_special_masks.append(mask)
+
+        self.special_ids_tensor = torch.tensor(all_special_ids, dtype=torch.long)
+        self.special_mask_tensor = torch.tensor(all_special_masks, dtype=torch.float)
 
     def _tokenize_texts(self, tokenizer):
         """实时分词（原有逻辑）"""

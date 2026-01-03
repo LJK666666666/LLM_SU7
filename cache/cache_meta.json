@@ -1,7 +1,8 @@
 {
-  "version": "1.0",
-  "created_at": "2026-01-03T22:57:25.724826",
-  "n_unique_texts": 248557,
+  "version": "2.0",
+  "created_at": "2026-01-03T23:42:00.156300",
+  "n_preprocessed_texts": 248557,
+  "n_raw_texts": 250129,
   "max_length": 128,
   "data_files": [
     "D:\\010_CodePrograms\\L\\LLM_su7\\train.pkl",
