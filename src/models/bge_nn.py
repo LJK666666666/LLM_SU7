@@ -920,8 +920,14 @@ class BGENNModel:
         patience_counter = 0
         train_losses = []
         val_losses = []
+        learning_rates = []
+        training_history = []  # 每个epoch的详细记录
 
         for epoch in range(self.epochs):
+            # 记录当前学习率
+            current_lr = optimizer.param_groups[0]['lr']
+            learning_rates.append(current_lr)
+
             # 训练
             self.model.train()
             train_loss = 0
@@ -990,9 +996,21 @@ class BGENNModel:
             val_loss /= len(val_loader)
             val_losses.append(val_loss)
 
-            print(f"Epoch {epoch+1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}")
+            print(f"Epoch {epoch+1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}, lr={current_lr:.2e}")
 
             scheduler.step(val_loss)
+
+            # 记录本epoch的详细信息
+            epoch_info = {
+                'epoch': epoch + 1,
+                'train_loss': float(train_loss),
+                'val_loss': float(val_loss),
+                'learning_rate': float(current_lr),
+                'best_val_loss': float(best_val_loss),
+                'patience_counter': patience_counter,
+                'nan_count': nan_count,
+            }
+            training_history.append(epoch_info)
 
             # 保存 last 权重（每个epoch都保存）
             if save_dir is not None:
@@ -1006,9 +1024,31 @@ class BGENNModel:
                     'val_loss': val_loss,
                     'train_losses': train_losses,
                     'val_losses': val_losses,
+                    'learning_rates': learning_rates,
                     'best_val_loss': best_val_loss,
                     'patience_counter': patience_counter,
                 }, last_path)
+
+                # 保存训练历史到JSON文件（每个epoch更新）
+                history_path = Path(save_dir) / 'training_history.json'
+                with open(history_path, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'history': training_history,
+                        'config': {
+                            'model': self.name,
+                            'freeze_bert': self.freeze_bert,
+                            'hidden_size': self.hidden_size,
+                            'dropout': self.dropout,
+                            'epochs': self.epochs,
+                            'batch_size': self.batch_size,
+                            'learning_rate': self.learning_rate,
+                            'patience': self.patience,
+                            'loss_type': self.loss_type,
+                            'use_cross_attention': self.use_cross_attention,
+                            'use_context': self.use_context,
+                            'use_density_features': self.use_density_features,
+                        }
+                    }, f, indent=2, ensure_ascii=False)
 
             # Early stopping
             if val_loss < best_val_loss:
@@ -1026,6 +1066,7 @@ class BGENNModel:
                         'val_loss': val_loss,
                         'train_losses': train_losses,
                         'val_losses': val_losses,
+                        'learning_rates': learning_rates,
                     }, best_path)
                     print(f"  保存最佳模型 (val_loss={val_loss:.4f})")
             else:
@@ -1041,6 +1082,8 @@ class BGENNModel:
 
         self.train_losses = train_losses
         self.val_losses = val_losses
+        self.learning_rates = learning_rates
+        self.training_history = training_history
 
     def predict(self, df, density_df=None):
         """预测（返回均值）"""
@@ -1451,8 +1494,14 @@ class BGEMiniModel:
         patience_counter = 0
         train_losses = []
         val_losses = []
+        learning_rates = []
+        training_history = []
 
         for epoch in range(self.epochs):
+            # 记录当前学习率
+            current_lr = optimizer.param_groups[0]['lr']
+            learning_rates.append(current_lr)
+
             # 训练
             self.model.train()
             train_loss = 0
@@ -1511,9 +1560,21 @@ class BGEMiniModel:
             val_loss /= len(val_loader)
             val_losses.append(val_loss)
 
-            print(f"Epoch {epoch+1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}")
+            print(f"Epoch {epoch+1}: train_loss={train_loss:.4f}, val_loss={val_loss:.4f}, lr={current_lr:.2e}")
 
             scheduler.step(val_loss)
+
+            # 记录本epoch的详细信息
+            epoch_info = {
+                'epoch': epoch + 1,
+                'train_loss': float(train_loss),
+                'val_loss': float(val_loss),
+                'learning_rate': float(current_lr),
+                'best_val_loss': float(best_val_loss),
+                'patience_counter': patience_counter,
+                'nan_count': nan_count,
+            }
+            training_history.append(epoch_info)
 
             # 保存 last 权重（每个epoch都保存）
             if save_dir is not None:
@@ -1527,9 +1588,29 @@ class BGEMiniModel:
                     'val_loss': val_loss,
                     'train_losses': train_losses,
                     'val_losses': val_losses,
+                    'learning_rates': learning_rates,
                     'best_val_loss': best_val_loss,
                     'patience_counter': patience_counter,
                 }, last_path)
+
+                # 保存训练历史到JSON文件
+                history_path = Path(save_dir) / 'training_history.json'
+                with open(history_path, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        'history': training_history,
+                        'config': {
+                            'model': self.name,
+                            'freeze_bert': self.freeze_bert,
+                            'hidden_size': self.hidden_size,
+                            'dropout': self.dropout,
+                            'epochs': self.epochs,
+                            'batch_size': self.batch_size,
+                            'learning_rate': self.learning_rate,
+                            'patience': self.patience,
+                            'use_context': self.use_context,
+                            'use_special_embeddings': self.use_special_embeddings,
+                        }
+                    }, f, indent=2, ensure_ascii=False)
 
             # Early stopping
             if val_loss < best_val_loss:
@@ -1547,6 +1628,7 @@ class BGEMiniModel:
                         'val_loss': val_loss,
                         'train_losses': train_losses,
                         'val_losses': val_losses,
+                        'learning_rates': learning_rates,
                     }, best_path)
                     print(f"  保存最佳模型 (val_loss={val_loss:.4f})")
             else:
@@ -1562,6 +1644,8 @@ class BGEMiniModel:
 
         self.train_losses = train_losses
         self.val_losses = val_losses
+        self.learning_rates = learning_rates
+        self.training_history = training_history
 
     def predict(self, df, density_df=None):
         """预测（返回均值）"""
