@@ -104,9 +104,20 @@ def load_checkpoint(checkpoint_path, model_name):
     """
     checkpoint_path = Path(checkpoint_path)
 
+    # 判断是文件还是目录
+    if checkpoint_path.is_file():
+        # 用户直接提供了模型文件路径
+        model_file = checkpoint_path
+        checkpoint_dir = checkpoint_path.parent
+    else:
+        # 用户提供了目录路径
+        checkpoint_dir = checkpoint_path
+        model_file = None  # 稍后确定
+
     # 加载传统模型
     if model_name in ['rf', 'ridge', 'lasso', 'gbdt', 'xgboost', 'lightgbm', 'ngboost']:
-        model_file = checkpoint_path / 'model.pkl'
+        if model_file is None:
+            model_file = checkpoint_dir / 'model.pkl'
         if not model_file.exists():
             raise FileNotFoundError(f"模型文件不存在: {model_file}")
 
@@ -115,7 +126,12 @@ def load_checkpoint(checkpoint_path, model_name):
 
     # 加载BGE神经网络模型
     elif model_name in ['bge_nn', 'bge_mini']:
-        model_file = checkpoint_path / 'model.pt'
+        if model_file is None:
+            # 优先使用model_best.pt，其次model.pt
+            if (checkpoint_dir / 'model_best.pt').exists():
+                model_file = checkpoint_dir / 'model_best.pt'
+            else:
+                model_file = checkpoint_dir / 'model.pt'
         if not model_file.exists():
             raise FileNotFoundError(f"模型文件不存在: {model_file}")
 
@@ -123,7 +139,7 @@ def load_checkpoint(checkpoint_path, model_name):
         model_cls = MODEL_REGISTRY[model_name]
 
         # 加载配置
-        config_file = checkpoint_path / 'config.json' if (checkpoint_path / 'config.json').exists() else checkpoint_path / 'args.json'
+        config_file = checkpoint_dir / 'config.json' if (checkpoint_dir / 'config.json').exists() else checkpoint_dir / 'args.json'
         with open(config_file, 'r', encoding='utf-8') as f:
             config = json.load(f)
 
@@ -146,7 +162,7 @@ def load_checkpoint(checkpoint_path, model_name):
         raise ValueError(f"未知模型类型: {model_name}")
 
     # 加载配置
-    config_file = checkpoint_path / 'config.json' if (checkpoint_path / 'config.json').exists() else checkpoint_path / 'args.json'
+    config_file = checkpoint_dir / 'config.json' if (checkpoint_dir / 'config.json').exists() else checkpoint_dir / 'args.json'
     with open(config_file, 'r', encoding='utf-8') as f:
         config = json.load(f)
 
