@@ -1,0 +1,10 @@
+{
+    "test_MAE": 1.1076,
+    "test_MSLE": 0.0364,
+    "test_ACP@20%": 0.9782,
+    "test_ACP@50%": 0.9782,
+    "test_NLL": 28376.4961,
+    "test_LogNLL": -2.6303,
+    "test_PICP@95%": 0.9721,
+    "test_MPIW@95%": 2.8602
+}

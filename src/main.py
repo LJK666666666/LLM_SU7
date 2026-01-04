@@ -22,6 +22,10 @@
 指定输出目录：
     python src/main.py --model bge_nn --output_dir results/my_experiment
 
+恢复训练（从checkpoint继续）：
+    python src/main.py --model bge_nn --resume results/comment_pred_bge_nn_1
+    python src/main.py --model bge_nn --resume results/comment_pred_bge_nn_1 --epochs 50  # 可增加总epoch数
+
 使用预分词缓存（加速训练）：
     python src/pretokenize.py                    # 首次：生成缓存
     python src/main.py --model bge_nn --use_cache  # 使用缓存训练
@@ -356,6 +360,17 @@ def test_bge_nn(args, model, test_df, test_density, checkpoint_path):
     print(f"{'PICP@95%':<15} {test_metrics['test_PICP@95%']*100:<12.2f}%")
     print(f"{'MPIW@95%':<15} {test_metrics['test_MPIW@95%']:<12.4f}")
 
+    # 保存测试结果到checkpoint目录
+    if checkpoint_path.is_file():
+        result_dir = checkpoint_path.parent
+    else:
+        result_dir = checkpoint_path
+
+    test_result_file = result_dir / 'test_metrics.json'
+    with open(test_result_file, 'w', encoding='utf-8') as f:
+        json.dump(test_metrics, f, indent=2, ensure_ascii=False)
+    print(f"\n测试结果已保存: {test_result_file}")
+
     print("\n" + "=" * 60)
     print("【测试完成】")
     print("=" * 60)
@@ -586,8 +601,41 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     if cache_dir:
         print(f"  预分词缓存: {cache_dir}")
 
+    # 处理恢复训练参数
+    resume_from = None
+    if args.resume:
+        resume_path = Path(args.resume)
+        if not resume_path.is_absolute():
+            # 尝试多种路径解析
+            if resume_path.exists():
+                pass
+            elif (ROOT_DIR / args.resume).exists():
+                resume_path = ROOT_DIR / args.resume
+            elif (RESULT_DIR / args.resume).exists():
+                resume_path = RESULT_DIR / args.resume
+            else:
+                resume_path = ROOT_DIR / args.resume
+
+        if not resume_path.exists():
+            print(f"错误: 恢复训练的checkpoint不存在: {resume_path}")
+            return
+
+        # 检查 model_last.pt 是否存在
+        last_model_path = resume_path / 'model_last.pt'
+        if not last_model_path.exists():
+            print(f"错误: model_last.pt 不存在于 {resume_path}")
+            print("  恢复训练需要 model_last.pt 文件（包含优化器状态）")
+            return
+
+        resume_from = resume_path
+        print(f"\n【恢复训练】")
+        print(f"  从checkpoint恢复: {resume_from}")
+
     # 创建结果目录（用于保存训练过程中的权重）
-    if args.output_dir:
+    if args.resume:
+        # 恢复训练时，继续使用原来的目录
+        result_dir = resume_from
+    elif args.output_dir:
         result_dir = Path(args.output_dir)
         result_dir.mkdir(parents=True, exist_ok=True)
     else:
@@ -599,10 +647,11 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     print("\n【训练中...】")
     if args.mode == 'full':
         model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
-                  test_df=test_df, test_density=test_density, cache_dir=cache_dir)
+                  test_df=test_df, test_density=test_density, cache_dir=cache_dir,
+                  resume_from=resume_from)
     else:
         model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
-                  cache_dir=cache_dir)
+                  cache_dir=cache_dir, resume_from=resume_from)
     print("训练完成!")
 
     # 评估（使用缓存的数据集，无需重新分词）
@@ -817,6 +866,10 @@ def parse_args():
                         help='禁用上下文文本，只使用评论文本 (消融实验)')
     parser.add_argument('--no_density', action='store_true',
                         help='禁用时间密度特征 (消融实验)')
+
+    # 恢复训练参数
+    parser.add_argument('--resume', type=str, default=None,
+                        help='从指定checkpoint恢复训练（目录路径，如 results/comment_pred_bge_nn_1）')
 
     # 其他参数
     parser.add_argument('--output_dir', type=str, default=None,
