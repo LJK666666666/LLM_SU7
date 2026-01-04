@@ -138,10 +138,16 @@ def load_checkpoint(checkpoint_path, model_name):
         # 创建模型实例
         model_cls = MODEL_REGISTRY[model_name]
 
-        # 加载配置
-        config_file = checkpoint_dir / 'config.json' if (checkpoint_dir / 'config.json').exists() else checkpoint_dir / 'args.json'
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
+        # 尝试加载配置（可能不存在）
+        config = {}
+        config_file = checkpoint_dir / 'config.json'
+        if not config_file.exists():
+            config_file = checkpoint_dir / 'args.json'
+        if config_file.exists():
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        else:
+            print(f"  警告: 配置文件不存在，使用默认参数")
 
         model = model_cls(
             freeze_bert=config.get('freeze_bert', True) if 'freeze_bert' in config else not config.get('finetune_bge', False),
@@ -150,7 +156,9 @@ def load_checkpoint(checkpoint_path, model_name):
             epochs=config.get('epochs', 30),
             batch_size=config.get('batch_size', 32),
             learning_rate=config.get('nn_learning_rate', 1e-4),
-            patience=config.get('patience', 5)
+            patience=config.get('patience', 5),
+            use_density_features=config.get('use_density_features', True),
+            use_context=config.get('use_context', True),
         )
 
         # 加载权重
@@ -161,10 +169,15 @@ def load_checkpoint(checkpoint_path, model_name):
     else:
         raise ValueError(f"未知模型类型: {model_name}")
 
-    # 加载配置
-    config_file = checkpoint_dir / 'config.json' if (checkpoint_dir / 'config.json').exists() else checkpoint_dir / 'args.json'
-    with open(config_file, 'r', encoding='utf-8') as f:
-        config = json.load(f)
+    # 加载配置（用于返回）
+    config_file = checkpoint_dir / 'config.json'
+    if not config_file.exists():
+        config_file = checkpoint_dir / 'args.json'
+    if config_file.exists():
+        with open(config_file, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+    else:
+        config = {}  # 返回空配置
 
     return model, config
 
