@@ -778,6 +778,42 @@ class BGENNModel:
 
         return bert_model
 
+    def build_model(self, num_numeric_features=None, state_dict=None):
+        """构建模型架构（用于加载checkpoint）
+
+        参数:
+            num_numeric_features: 数值特征数量，如果为None则从state_dict推断
+            state_dict: 模型状态字典，用于推断参数
+        """
+        # 从state_dict推断num_numeric_features
+        if num_numeric_features is None and state_dict is not None:
+            # 从numeric_proj的第一层权重推断输入维度
+            for key in state_dict:
+                if 'numeric_proj.0.weight' in key:
+                    num_numeric_features = state_dict[key].shape[1]
+                    break
+
+        if num_numeric_features is None:
+            # 默认值：base(7) + text(6) = 13
+            num_numeric_features = 13
+            print(f"  警告: 无法推断数值特征数量，使用默认值 {num_numeric_features}")
+
+        # 加载BGE模型
+        bert_model = self._load_bge_model()
+
+        # 创建模型
+        self.model = CommentPredictor(
+            bert_model,
+            num_numeric_features,
+            hidden_size=self.hidden_size,
+            dropout=self.dropout,
+            freeze_bert=self.freeze_bert,
+            use_cross_attention=self.use_cross_attention,
+            use_context=self.use_context,
+        ).to(self.device)
+
+        print(f"模型架构已构建: num_features={num_numeric_features}")
+
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
             test_df=None, test_density=None, cache_dir=None):
         """训练模型
@@ -1391,6 +1427,42 @@ class BGEMiniModel:
         print(f"BGE权重加载完成，匹配: {len(new_state_dict) - len(missing)}/{len(new_state_dict)}")
 
         return bert_model
+
+    def build_model(self, num_numeric_features=None, state_dict=None):
+        """构建模型架构（用于加载checkpoint）
+
+        参数:
+            num_numeric_features: 数值特征数量，如果为None则从state_dict推断
+            state_dict: 模型状态字典，用于推断参数
+        """
+        # 从state_dict推断num_numeric_features
+        if num_numeric_features is None and state_dict is not None:
+            # 从numeric_proj的第一层权重推断输入维度
+            for key in state_dict:
+                if 'numeric_proj.0.weight' in key:
+                    num_numeric_features = state_dict[key].shape[1]
+                    break
+
+        if num_numeric_features is None:
+            # 默认值：base(7) + text(6) = 13
+            num_numeric_features = 13
+            print(f"  警告: 无法推断数值特征数量，使用默认值 {num_numeric_features}")
+
+        # 加载BGE模型
+        bert_model = self._load_bge_model()
+
+        # 创建Mini模型
+        self.model = CommentPredictorMini(
+            bert_model,
+            num_numeric_features,
+            hidden_size=self.hidden_size,
+            dropout=self.dropout,
+            freeze_bert=self.freeze_bert,
+            use_special_embeddings=self.use_special_embeddings,
+            use_context=self.use_context
+        ).to(self.device)
+
+        print(f"模型架构已构建: num_features={num_numeric_features}")
 
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
             test_df=None, test_density=None, cache_dir=None):

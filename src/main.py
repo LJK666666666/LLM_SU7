@@ -163,7 +163,13 @@ def load_checkpoint(checkpoint_path, model_name):
 
         # 加载权重
         checkpoint = torch.load(model_file, map_location='cpu')
-        model.model.load_state_dict(checkpoint['model_state_dict'])
+        state_dict = checkpoint['model_state_dict']
+
+        # 构建模型架构（从state_dict推断参数）
+        model.build_model(state_dict=state_dict)
+
+        # 加载权重到模型
+        model.model.load_state_dict(state_dict)
         model.model.eval()
 
     else:
