@@ -163,12 +163,24 @@ def test_only(args):
     if args.checkpoint:
         checkpoint_path = Path(args.checkpoint)
         if not checkpoint_path.is_absolute():
-            checkpoint_path = RESULT_DIR / args.checkpoint
+            # 尝试多种路径解析方式
+            # 1. 相对于当前工作目录
+            if checkpoint_path.exists():
+                pass  # 使用原路径
+            # 2. 相对于项目根目录
+            elif (ROOT_DIR / args.checkpoint).exists():
+                checkpoint_path = ROOT_DIR / args.checkpoint
+            # 3. 相对于results目录（用户可能省略了results/前缀）
+            elif (RESULT_DIR / args.checkpoint).exists():
+                checkpoint_path = RESULT_DIR / args.checkpoint
+            else:
+                # 都不存在，使用ROOT_DIR作为基础路径（后面会报错）
+                checkpoint_path = ROOT_DIR / args.checkpoint
     else:
         checkpoint_path = find_latest_checkpoint(args.model)
 
     if checkpoint_path is None or not checkpoint_path.exists():
-        print(f"错误: 找不到模型checkpoint")
+        print(f"错误: 找不到模型checkpoint: {checkpoint_path}")
         print(f"请指定 --checkpoint 参数，或确保 results/comment_pred_{args.model}_* 目录存在")
         return
 
