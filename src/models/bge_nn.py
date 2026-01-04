@@ -1315,6 +1315,8 @@ class BGEMiniModel:
         self.tokenizer = None
         self.supports_uncertainty = True
         self.use_log_target = True
+        self.loss_type = 'log_nll'  # Mini模型固定使用log空间NLL
+        self.use_density_features = kwargs.get('use_density_features', True)  # 是否使用密度特征
 
         # 检查BF16支持
         if self.use_bf16:
@@ -1410,6 +1412,7 @@ class BGEMiniModel:
         print(f"\n[Mini模型] 使用设备: {self.device}")
         print(f"  冻结BGE: {self.freeze_bert}")
         print(f"  使用上下文: {self.use_context}")
+        print(f"  使用密度特征: {self.use_density_features}")
         print(f"  特殊嵌入: {self.use_special_embeddings}")
 
         # 加载BGE模型
@@ -1417,13 +1420,34 @@ class BGEMiniModel:
 
         # 创建数据集（一次性完成所有分词）
         print("创建数据集...")
-        train_dataset = CommentDataset(train_df, self.tokenizer, train_density, max_length=128, cache_dir=cache_dir)
-        val_dataset = CommentDataset(val_df, self.tokenizer, val_density, max_length=128, cache_dir=cache_dir)
+        train_dataset = CommentDataset(
+            train_df, self.tokenizer,
+            train_density if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context,
+            cache_dir=cache_dir
+        )
+        val_dataset = CommentDataset(
+            val_df, self.tokenizer,
+            val_density if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context,
+            cache_dir=cache_dir
+        )
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
         if test_df is not None:
             print("创建测试数据集（预分词）...")
-            self._test_dataset = CommentDataset(test_df, self.tokenizer, test_density, max_length=128, cache_dir=cache_dir)
+            self._test_dataset = CommentDataset(
+                test_df, self.tokenizer,
+                test_density if self.use_density_features else None,
+                max_length=128,
+                use_density_features=self.use_density_features,
+                use_context=self.use_context,
+                cache_dir=cache_dir
+            )
         else:
             self._test_dataset = None
 
@@ -1608,6 +1632,7 @@ class BGEMiniModel:
                             'learning_rate': self.learning_rate,
                             'patience': self.patience,
                             'use_context': self.use_context,
+                            'use_density_features': self.use_density_features,
                             'use_special_embeddings': self.use_special_embeddings,
                         }
                     }, f, indent=2, ensure_ascii=False)
@@ -1657,7 +1682,13 @@ class BGEMiniModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
-        dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+        dataset = CommentDataset(
+            df, self.tokenizer,
+            density_df if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context
+        )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
             dataset,
