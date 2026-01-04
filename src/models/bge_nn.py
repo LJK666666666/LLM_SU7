@@ -1131,12 +1131,16 @@ class BGENNModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
+        # 使用缓存（如果设置了cache_dir属性）
+        cache_dir = getattr(self, 'cache_dir', None)
+
         dataset = CommentDataset(
             df, self.tokenizer,
             density_df if self.use_density_features else None,
             max_length=128,
             use_density_features=self.use_density_features,
-            use_context=self.use_context
+            use_context=self.use_context,
+            cache_dir=cache_dir
         )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
@@ -1274,20 +1278,48 @@ class BGENNModel:
 
         return y_pred, y_std, nll
 
-    def compute_nll(self, df, density_df=None):
-        """计算NLL损失"""
+    def compute_nll(self, df, density_df=None, y_pred=None, y_std=None):
+        """计算NLL损失
+
+        参数:
+            df: 数据
+            density_df: 密度特征
+            y_pred: 预计算的预测值（可选，避免重复分词）
+            y_std: 预计算的标准差（可选，避免重复分词）
+        """
+        y_true = df['子评论数'].values
+
+        # 如果提供了预计算结果，直接计算NLL
+        if y_pred is not None and y_std is not None:
+            y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
+            y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
+            y_std_tensor = torch.tensor(y_std, dtype=torch.float32)
+
+            # 选择损失函数
+            if self.loss_type == 'standard_nll':
+                nll = standard_nll_loss(y_true_tensor, y_pred_tensor, y_std_tensor)
+            else:
+                nll = nll_loss(y_true_tensor, y_pred_tensor, y_std_tensor)
+
+            return nll.item()
+
+        # 否则需要重新计算
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
         # 选择损失函数
         loss_fn = standard_nll_loss if self.loss_type == 'standard_nll' else nll_loss
 
+        # 使用缓存
+        cache_dir = getattr(self, 'cache_dir', None)
+
         dataset = CommentDataset(
             df, self.tokenizer,
             density_df if self.use_density_features else None,
             max_length=128,
             use_density_features=self.use_density_features,
-            use_context=self.use_context
+            use_context=self.use_context,
+            cache_dir=cache_dir
         )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 
@@ -1754,12 +1786,16 @@ class BGEMiniModel:
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
+        # 使用缓存（如果设置了cache_dir属性）
+        cache_dir = getattr(self, 'cache_dir', None)
+
         dataset = CommentDataset(
             df, self.tokenizer,
             density_df if self.use_density_features else None,
             max_length=128,
             use_density_features=self.use_density_features,
-            use_context=self.use_context
+            use_context=self.use_context,
+            cache_dir=cache_dir
         )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
@@ -1875,12 +1911,40 @@ class BGEMiniModel:
 
         return y_pred, y_std, nll
 
-    def compute_nll(self, df, density_df=None):
-        """计算NLL损失"""
+    def compute_nll(self, df, density_df=None, y_pred=None, y_std=None):
+        """计算NLL损失
+
+        参数:
+            df: 数据
+            density_df: 密度特征
+            y_pred: 预计算的预测值（可选，避免重复分词）
+            y_std: 预计算的标准差（可选，避免重复分词）
+        """
+        y_true = df['子评论数'].values
+
+        # 如果提供了预计算结果，直接计算NLL
+        if y_pred is not None and y_std is not None:
+            y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
+            y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
+            y_std_tensor = torch.tensor(y_std, dtype=torch.float32)
+            nll = nll_loss(y_true_tensor, y_pred_tensor, y_std_tensor)
+            return nll.item()
+
+        # 否则需要重新计算
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
 
-        dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+        # 使用缓存
+        cache_dir = getattr(self, 'cache_dir', None)
+
+        dataset = CommentDataset(
+            df, self.tokenizer,
+            density_df if self.use_density_features else None,
+            max_length=128,
+            use_density_features=self.use_density_features,
+            use_context=self.use_context,
+            cache_dir=cache_dir
+        )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 
         if self.use_bf16:

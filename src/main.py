@@ -320,24 +320,33 @@ def test_bge_nn(args, model, test_df, test_density, checkpoint_path):
     """BGE神经网络模型测试"""
     print("\n【评估结果】")
 
-    y_test_pred = model.predict(test_df, test_density)
-    _, y_test_std = model.predict_dist(test_df, test_density)
+    # 解析缓存目录
+    cache_dir = None
+    if args.use_cache:
+        cache_dir = ROOT_DIR / 'cache'
+    elif args.cache_dir:
+        cache_dir = Path(args.cache_dir)
+
+    # 设置模型的缓存目录
+    if cache_dir:
+        model.cache_dir = cache_dir
+
+    # 只调用一次 predict_dist 获取预测值和标准差
+    y_test_pred, y_test_std = model.predict_dist(test_df, test_density)
     y_test = test_df['子评论数'].values
 
     # 计算评估指标
     test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
 
-    # 计算NLL
-    test_nll = model.compute_nll(test_df, test_density)
+    # 计算NLL（使用已有的预测结果，避免重复分词）
+    test_nll = model.compute_nll(test_df, test_density, y_pred=y_test_pred, y_std=y_test_std)
     test_metrics['test_NLL'] = test_nll
 
     # 打印结果
     print(f"\n{'指标':<15} {'值':<12}")
     print("-" * 30)
-    print(f"{'RMSE':<15} {test_metrics['test_RMSE']:<12.4f}")
     print(f"{'MAE':<15} {test_metrics['test_MAE']:<12.4f}")
     print(f"{'MSLE':<15} {test_metrics['test_MSLE']:<12.4f}")
-    print(f"{'R2':<15} {test_metrics['test_R2']:<12.4f}")
     print(f"{'ACP@20%':<15} {test_metrics['test_ACP@20%']*100:<12.2f}%")
     print(f"{'ACP@50%':<15} {test_metrics['test_ACP@50%']*100:<12.2f}%")
 
