@@ -1,0 +1,19 @@
+{
+  "mode": "full",
+  "checkpoint": null,
+  "model": "bge_mini",
+  "features": "base,text",
+  "density_method": "minhash",
+  "n_estimators": 100,
+  "max_depth": 10,
+  "learning_rate": 0.1,
+  "alpha": 1.0,
+  "finetune_bge": false,
+  "epochs": 15,
+  "batch_size": 1024,
+  "hidden_size": 256,
+  "dropout": 0.1,
+  "patience": 5,
+  "nn_learning_rate": 0.001,
+  "seed": 42
+}

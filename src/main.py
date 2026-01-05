@@ -838,8 +838,8 @@ def parse_args():
     # BGE神经网络模型参数
     parser.add_argument('--finetune_bge', action='store_true',
                         help='是否微调BGE模型 (default: False，冻结BGE)')
-    parser.add_argument('--epochs', type=int, default=30,
-                        help='训练轮数，用于bge_nn (default: 30)')
+    parser.add_argument('--epochs', type=int, default=15,
+                        help='训练轮数，用于bge_nn (default: 15)')
     parser.add_argument('--batch_size', type=int, default=32,
                         help='批次大小，用于bge_nn (default: 32)')
     parser.add_argument('--hidden_size', type=int, default=256,
