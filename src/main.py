@@ -142,16 +142,23 @@ def load_checkpoint(checkpoint_path, model_name):
         # 创建模型实例
         model_cls = MODEL_REGISTRY[model_name]
 
-        # 尝试加载配置（可能不存在）
+        # 尝试加载配置（按优先级: args.json -> training_history.json -> 默认）
         config = {}
-        config_file = checkpoint_dir / 'config.json'
-        if not config_file.exists():
-            config_file = checkpoint_dir / 'args.json'
+        config_file = checkpoint_dir / 'args.json'
         if config_file.exists():
             with open(config_file, 'r', encoding='utf-8') as f:
                 config = json.load(f)
         else:
-            print(f"  警告: 配置文件不存在，使用默认参数")
+            # 尝试从 training_history.json 中读取配置
+            history_file = checkpoint_dir / 'training_history.json'
+            if history_file.exists():
+                with open(history_file, 'r', encoding='utf-8') as f:
+                    history_data = json.load(f)
+                    config = history_data.get('config', {})
+                    if config:
+                        print(f"  从training_history.json加载配置")
+            if not config:
+                print(f"  警告: 配置文件不存在，使用默认参数")
 
         model = model_cls(
             freeze_bert=config.get('freeze_bert', True) if 'freeze_bert' in config else not config.get('finetune_bge', False),
@@ -179,16 +186,7 @@ def load_checkpoint(checkpoint_path, model_name):
     else:
         raise ValueError(f"未知模型类型: {model_name}")
 
-    # 加载配置（用于返回）
-    config_file = checkpoint_dir / 'config.json'
-    if not config_file.exists():
-        config_file = checkpoint_dir / 'args.json'
-    if config_file.exists():
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-    else:
-        config = {}  # 返回空配置
-
+    # 配置已在上面加载过，直接返回
     return model, config
 
 
@@ -603,6 +601,7 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
 
     # 处理恢复训练参数
     resume_from = None
+    resume_model_file = None  # 实际使用的模型文件
     if args.resume:
         resume_path = Path(args.resume)
         if not resume_path.is_absolute():
@@ -616,20 +615,30 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
             else:
                 resume_path = ROOT_DIR / args.resume
 
-        if not resume_path.exists():
+        # 判断输入是文件还是目录
+        if resume_path.is_file():
+            # 用户直接指定了模型文件
+            resume_model_file = resume_path
+            resume_from = resume_path.parent
+        elif resume_path.is_dir():
+            resume_from = resume_path
+            # 按优先级查找模型文件: model_last.pt > model_best.pt > model.pt
+            for fname in ['model_last.pt', 'model_best.pt', 'model.pt']:
+                if (resume_path / fname).exists():
+                    resume_model_file = resume_path / fname
+                    break
+        else:
             print(f"错误: 恢复训练的checkpoint不存在: {resume_path}")
             return
 
-        # 检查 model_last.pt 是否存在
-        last_model_path = resume_path / 'model_last.pt'
-        if not last_model_path.exists():
-            print(f"错误: model_last.pt 不存在于 {resume_path}")
-            print("  恢复训练需要 model_last.pt 文件（包含优化器状态）")
+        if resume_model_file is None or not resume_model_file.exists():
+            print(f"错误: 未找到可用的模型文件于 {resume_from}")
+            print("  需要以下文件之一: model_last.pt, model_best.pt, model.pt")
             return
 
-        resume_from = resume_path
         print(f"\n【恢复训练】")
         print(f"  从checkpoint恢复: {resume_from}")
+        print(f"  使用模型文件: {resume_model_file.name}")
 
     # 创建结果目录（用于保存训练过程中的权重）
     if args.resume:
@@ -642,16 +651,24 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
         result_dir = get_result_dir(args.model)
     print(f"\n结果保存目录: {result_dir}")
 
+    # 在训练开始前保存参数（确保中断时也有配置文件）
+    if not args.resume:  # 恢复训练时不覆盖原有参数
+        args_dict = vars(args)
+        args_path = result_dir / 'args.json'
+        with open(args_path, 'w', encoding='utf-8') as f:
+            json.dump(args_dict, f, indent=2, ensure_ascii=False)
+        print(f"参数已保存: {args_path}")
+
     # 训练（传入save_dir以便每个epoch保存权重）
     # full模式下同时传入测试集，提前分词避免评估时重复分词
     print("\n【训练中...】")
     if args.mode == 'full':
         model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
                   test_df=test_df, test_density=test_density, cache_dir=cache_dir,
-                  resume_from=resume_from)
+                  resume_from=resume_from, resume_model_file=resume_model_file)
     else:
         model.fit(train_df, val_df, train_density, val_density, save_dir=result_dir,
-                  cache_dir=cache_dir, resume_from=resume_from)
+                  cache_dir=cache_dir, resume_from=resume_from, resume_model_file=resume_model_file)
     print("训练完成!")
 
     # 评估（使用缓存的数据集，无需重新分词）
@@ -711,13 +728,6 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(all_metrics, f, indent=2, ensure_ascii=False, default=float)
     print(f"指标已保存: {metrics_path}")
-
-    # 保存参数
-    args_dict = vars(args)
-    args_path = result_dir / 'args.json'
-    with open(args_path, 'w', encoding='utf-8') as f:
-        json.dump(args_dict, f, indent=2, ensure_ascii=False)
-    print(f"参数已保存: {args_path}")
 
     # 绘制训练曲线
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))

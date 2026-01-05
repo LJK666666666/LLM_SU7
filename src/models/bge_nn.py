@@ -818,7 +818,7 @@ class BGENNModel:
         print(f"模型架构已构建: num_features={num_numeric_features}")
 
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
-            test_df=None, test_density=None, cache_dir=None, resume_from=None):
+            test_df=None, test_density=None, cache_dir=None, resume_from=None, resume_model_file=None):
         """训练模型
 
         参数:
@@ -831,6 +831,7 @@ class BGENNModel:
             test_density: 测试集密度特征
             cache_dir: 预分词缓存目录（可选，加速训练）
             resume_from: 恢复训练的checkpoint目录（可选）
+            resume_model_file: 恢复训练使用的具体模型文件（可选）
         """
         from ..data.dataset import CommentDataset
 
@@ -967,47 +968,57 @@ class BGENNModel:
         # 恢复训练：加载checkpoint
         if resume_from is not None:
             resume_path = Path(resume_from)
-            last_model_path = resume_path / 'model_last.pt'
             history_path = resume_path / 'training_history.json'
 
-            print(f"\n【恢复训练】从 {resume_path} 加载checkpoint...")
+            # 确定要加载的模型文件
+            if resume_model_file is not None:
+                model_file = Path(resume_model_file)
+            else:
+                model_file = resume_path / 'model_last.pt'
 
-            # 加载模型状态
-            checkpoint = torch.load(last_model_path, map_location=self.device)
+            print(f"\n【恢复训练】从 {model_file} 加载checkpoint...")
+
+            # 加载checkpoint
+            checkpoint = torch.load(model_file, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
-            # 恢复训练状态
-            start_epoch = checkpoint['epoch']
-            best_val_loss = checkpoint['best_val_loss']
-            patience_counter = checkpoint['patience_counter']
-            train_losses = checkpoint.get('train_losses', [])
-            val_losses = checkpoint.get('val_losses', [])
-            learning_rates = checkpoint.get('learning_rates', [])
+            # 检查是否有完整的训练状态（优化器、调度器等）
+            has_full_state = 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint
 
-            # 恢复训练历史
+            if has_full_state:
+                # 完整恢复：加载优化器和调度器状态
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+                # 恢复训练状态
+                start_epoch = checkpoint.get('epoch', 0)
+                best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+                patience_counter = checkpoint.get('patience_counter', 0)
+                train_losses = checkpoint.get('train_losses', [])
+                val_losses = checkpoint.get('val_losses', [])
+                learning_rates = checkpoint.get('learning_rates', [])
+
+                print(f"  完整恢复模式（包含优化器状态）")
+                print(f"  已完成epoch: {start_epoch}/{self.epochs}")
+                print(f"  最佳验证损失: {best_val_loss:.4f}")
+                print(f"  当前patience: {patience_counter}/{self.patience}")
+            else:
+                # 仅加载模型权重，从头开始优化器
+                print(f"  仅加载模型权重（无优化器状态，从epoch 0开始）")
+                # train_losses等保持空列表，start_epoch保持0
+
+            # 恢复训练历史（如果存在）
             if history_path.exists():
                 with open(history_path, 'r', encoding='utf-8') as f:
                     history_data = json.load(f)
-                    training_history = history_data.get('history', [])
-            else:
-                # 如果没有历史文件，根据losses重建
-                for i in range(len(train_losses)):
-                    training_history.append({
-                        'epoch': i + 1,
-                        'train_loss': train_losses[i],
-                        'val_loss': val_losses[i] if i < len(val_losses) else None,
-                        'learning_rate': learning_rates[i] if i < len(learning_rates) else None,
-                    })
+                    if has_full_state:
+                        training_history = history_data.get('history', [])
+                    # 仅权重模式不加载历史，从空开始
 
-            print(f"  已完成epoch: {start_epoch}/{self.epochs}")
-            print(f"  最佳验证损失: {best_val_loss:.4f}")
-            print(f"  当前patience: {patience_counter}/{self.patience}")
             print(f"  继续训练epoch: {start_epoch + 1} -> {self.epochs}")
 
             # 如果已达到patience，警告用户
-            if patience_counter >= self.patience:
+            if has_full_state and patience_counter >= self.patience:
                 print(f"\n警告: 上次训练已触发early stopping，继续训练可能无效")
                 print(f"  考虑增加patience或调整学习率")
 
@@ -1552,7 +1563,7 @@ class BGEMiniModel:
         print(f"模型架构已构建: num_features={num_numeric_features}")
 
     def fit(self, train_df, val_df, train_density=None, val_density=None, save_dir=None,
-            test_df=None, test_density=None, cache_dir=None, resume_from=None):
+            test_df=None, test_density=None, cache_dir=None, resume_from=None, resume_model_file=None):
         """训练模型
 
         参数:
@@ -1565,6 +1576,7 @@ class BGEMiniModel:
             test_density: 测试集密度特征
             cache_dir: 预分词缓存目录（可选，加速训练）
             resume_from: 恢复训练的checkpoint目录（可选）
+            resume_model_file: 恢复训练使用的具体模型文件（可选）
         """
         from ..data.dataset import CommentDataset
         from contextlib import nullcontext
@@ -1685,47 +1697,57 @@ class BGEMiniModel:
         # 恢复训练：加载checkpoint
         if resume_from is not None:
             resume_path = Path(resume_from)
-            last_model_path = resume_path / 'model_last.pt'
             history_path = resume_path / 'training_history.json'
 
-            print(f"\n【恢复训练】从 {resume_path} 加载checkpoint...")
+            # 确定要加载的模型文件
+            if resume_model_file is not None:
+                model_file = Path(resume_model_file)
+            else:
+                model_file = resume_path / 'model_last.pt'
 
-            # 加载模型状态
-            checkpoint = torch.load(last_model_path, map_location=self.device)
+            print(f"\n【恢复训练】从 {model_file} 加载checkpoint...")
+
+            # 加载checkpoint
+            checkpoint = torch.load(model_file, map_location=self.device)
             self.model.load_state_dict(checkpoint['model_state_dict'])
-            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
 
-            # 恢复训练状态
-            start_epoch = checkpoint['epoch']
-            best_val_loss = checkpoint['best_val_loss']
-            patience_counter = checkpoint['patience_counter']
-            train_losses = checkpoint.get('train_losses', [])
-            val_losses = checkpoint.get('val_losses', [])
-            learning_rates = checkpoint.get('learning_rates', [])
+            # 检查是否有完整的训练状态（优化器、调度器等）
+            has_full_state = 'optimizer_state_dict' in checkpoint and 'scheduler_state_dict' in checkpoint
 
-            # 恢复训练历史
+            if has_full_state:
+                # 完整恢复：加载优化器和调度器状态
+                optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+                # 恢复训练状态
+                start_epoch = checkpoint.get('epoch', 0)
+                best_val_loss = checkpoint.get('best_val_loss', float('inf'))
+                patience_counter = checkpoint.get('patience_counter', 0)
+                train_losses = checkpoint.get('train_losses', [])
+                val_losses = checkpoint.get('val_losses', [])
+                learning_rates = checkpoint.get('learning_rates', [])
+
+                print(f"  完整恢复模式（包含优化器状态）")
+                print(f"  已完成epoch: {start_epoch}/{self.epochs}")
+                print(f"  最佳验证损失: {best_val_loss:.4f}")
+                print(f"  当前patience: {patience_counter}/{self.patience}")
+            else:
+                # 仅加载模型权重，从头开始优化器
+                print(f"  仅加载模型权重（无优化器状态，从epoch 0开始）")
+                # train_losses等保持空列表，start_epoch保持0
+
+            # 恢复训练历史（如果存在）
             if history_path.exists():
                 with open(history_path, 'r', encoding='utf-8') as f:
                     history_data = json.load(f)
-                    training_history = history_data.get('history', [])
-            else:
-                # 如果没有历史文件，根据losses重建
-                for i in range(len(train_losses)):
-                    training_history.append({
-                        'epoch': i + 1,
-                        'train_loss': train_losses[i],
-                        'val_loss': val_losses[i] if i < len(val_losses) else None,
-                        'learning_rate': learning_rates[i] if i < len(learning_rates) else None,
-                    })
+                    if has_full_state:
+                        training_history = history_data.get('history', [])
+                    # 仅权重模式不加载历史，从空开始
 
-            print(f"  已完成epoch: {start_epoch}/{self.epochs}")
-            print(f"  最佳验证损失: {best_val_loss:.4f}")
-            print(f"  当前patience: {patience_counter}/{self.patience}")
             print(f"  继续训练epoch: {start_epoch + 1} -> {self.epochs}")
 
             # 如果已达到patience，警告用户
-            if patience_counter >= self.patience:
+            if has_full_state and patience_counter >= self.patience:
                 print(f"\n警告: 上次训练已触发early stopping，继续训练可能无效")
                 print(f"  考虑增加patience或调整学习率")
 
