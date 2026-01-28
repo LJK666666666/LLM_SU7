@@ -196,6 +196,7 @@ def test_only(args):
     参数:
         args: 命令行参数
     """
+    target_col = '子评论数' if args.target == 'child' else '点赞数'
     # 确定checkpoint路径
     if args.checkpoint:
         checkpoint_path = Path(args.checkpoint)
@@ -278,11 +279,11 @@ def test_only(args):
 
     # BGE神经网络模型测试
     if args.model in ['bge_nn', 'bge_mini']:
-        return test_bge_nn(args, model, test_df, test_density, checkpoint_path)
+        return test_bge_nn(args, model, test_df, test_density, checkpoint_path, target_col)
 
     # 传统模型测试
     print("\n【准备特征】")
-    X_test, y_test = prepare_features(test_df, feature_cols)
+    X_test, y_test = prepare_features(test_df, feature_cols, target_col=target_col)
     print(f"测试集特征形状: {X_test.shape}")
 
     # 预测
@@ -318,7 +319,7 @@ def test_only(args):
     print("=" * 60)
 
 
-def test_bge_nn(args, model, test_df, test_density, checkpoint_path):
+def test_bge_nn(args, model, test_df, test_density, checkpoint_path, target_col):
     """BGE神经网络模型测试"""
     print("\n【评估结果】")
 
@@ -335,7 +336,7 @@ def test_bge_nn(args, model, test_df, test_density, checkpoint_path):
 
     # 只调用一次 predict_dist 获取预测值和标准差
     y_test_pred, y_test_std = model.predict_dist(test_df, test_density)
-    y_test = test_df['子评论数'].values
+    y_test = test_df[target_col].values
 
     # 计算评估指标
     test_metrics = evaluate(y_test, y_test_pred, prefix='test_', y_std=y_test_std)
@@ -440,9 +441,9 @@ def train(args):
 
     # 4. 准备特征矩阵
     print("\n【准备特征】")
-    X_train, y_train = prepare_features(train_df, feature_cols)
-    X_val, y_val = prepare_features(val_df, feature_cols)
-    X_test, y_test = prepare_features(test_df, feature_cols)
+    X_train, y_train = prepare_features(train_df, feature_cols, target_col=target_col)
+    X_val, y_val = prepare_features(val_df, feature_cols, target_col=target_col)
+    X_test, y_test = prepare_features(test_df, feature_cols, target_col=target_col)
 
     print(f"训练集特征形状: {X_train.shape}")
     print(f"验证集特征形状: {X_val.shape}")
@@ -537,6 +538,7 @@ def train(args):
 def train_bge_nn(args, model_cls, train_df, val_df, test_df,
                  train_density, val_density, test_density):
     """BGE神经网络模型训练流程"""
+    target_col = '子评论数' if args.target == 'child' else '点赞数'
     # 处理消融实验参数
     # 快捷方式：--ablation 参数
     use_cross_attention = True
@@ -587,7 +589,8 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
         loss_type=loss_type,
         use_cross_attention=use_cross_attention,
         use_context=use_context,
-        use_density_features=use_density_features
+        use_density_features=use_density_features,
+        target_col=target_col
     )
     print(f"\n模型: {model.name}")
     print(f"  冻结BGE: {model.freeze_bert}")
@@ -679,9 +682,9 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
     y_val_pred, y_val_std, val_nll = model.evaluate_all(use_cached='val')
 
     # 获取真实值
-    y_train = train_df['子评论数'].values
-    y_val = val_df['子评论数'].values
-    y_test = test_df['子评论数'].values
+    y_train = train_df[target_col].values
+    y_val = val_df[target_col].values
+    y_test = test_df[target_col].values
 
     # 根据 loss_type 确定 sigma_space
     sigma_space = 'original' if model.loss_type == 'standard_nll' else 'log'
@@ -829,6 +832,10 @@ def parse_args():
     # 特征组选择
     parser.add_argument('--features', type=str, default='base,text',
                         help='特征组，用逗号分隔: base,text,lda,density 或 all (default: base,text)')
+    
+    # 目标选择
+    parser.add_argument('--target', type=str, default='child', choices=['child', 'like'],
+                        help='predict target: child (child comment count) or like (like count)')  
 
     # 时间密度特征方法
     parser.add_argument('--density_method', type=str, default='minhash',

@@ -1,0 +1,115 @@
+\relax 
+\providecommand\hyper@newdestlabel[2]{}
+\providecommand\HyField@AuxAddToFields[1]{}
+\providecommand\HyField@AuxAddToCoFields[2]{}
+\citation{liu2019sentiment}
+\citation{zhang2020brand}
+\citation{wu2019npa}
+\@writefile{toc}{\contentsline {section}{\numberline {1}Introduction}{1}{section.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.1}Research Background: Popularity Prediction from a Complex Systems Perspective}{1}{subsection.1.1}\protected@file@percent }
+\citation{yang2011patterns}
+\citation{bandari2012pulse}
+\citation{deng2020deep}
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.2}Technical Challenges: Systematic Analysis of Triple Bottlenecks}{2}{subsection.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {1.3}Our Contributions: From Tactical Improvements to Paradigm Innovation}{2}{subsection.1.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2}Related Work}{2}{section.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1}Social Media Popularity Prediction: From Time Series Modeling to Deep Learning}{2}{subsection.2.1}\protected@file@percent }
+\citation{devlin2019bert}
+\citation{liu2019roberta}
+\citation{bge2023}
+\citation{gal2016uncertainty}
+\citation{blundell2015weight}
+\citation{gal2016dropout}
+\citation{duan2020ngboost}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2}Pre-trained Language Models: From Bag-of-Words to Context-Aware Representations}{3}{subsection.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3}Probabilistic Prediction and Uncertainty Estimation: From Point Estimates to Distribution Outputs}{3}{subsection.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {3}Method}{3}{section.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1}Problem Formalization: From Point Estimation to Distribution Estimation}{3}{subsection.3.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2}Model Architecture: Hierarchical Fusion of Multi-Source Semantics}{4}{subsection.3.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1}{\ignorespaces BGE-Attention Model Architecture}}{4}{figure.caption.1}\protected@file@percent }
+\providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
+\newlabel{fig:neural_networks}{{1}{4}{BGE-Attention Model Architecture}{figure.caption.1}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.1}Text Encoding Module: Independent Representation of Multi-Source Semantics}{4}{subsubsection.3.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.2}Cross-Attention Fusion Mechanism: Context-Aware Semantic Projection}{4}{subsubsection.3.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.2.3}Dual Prediction Heads: Explicit Modeling of Uncertainty}{5}{subsubsection.3.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3}Log-Scale NLL Loss Function: Reconstructing Scale Invariance}{5}{subsection.3.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2}{\ignorespaces Distribution comparison of popularity data in original scale vs. log scale: original scale shows heavy-tail distribution, log scale approximates normal}}{5}{figure.caption.2}\protected@file@percent }
+\newlabel{fig:log_distribution}{{2}{5}{Distribution comparison of popularity data in original scale vs. log scale: original scale shows heavy-tail distribution, log scale approximates normal}{figure.caption.2}{}}
+\newlabel{eq:nll_loss}{{6}{5}{Log-Scale NLL Loss Function: Reconstructing Scale Invariance}{equation.6}{}}
+\citation{blei2003latent}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Effect of smoothing constant $c$ on loss function scale sensitivity}}{6}{table.caption.3}\protected@file@percent }
+\newlabel{tab:smoothing_constant}{{1}{6}{Effect of smoothing constant $c$ on loss function scale sensitivity}{table.caption.3}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4}Feature Engineering: Systematic Extraction of Multi-Dimensional Signals}{6}{subsection.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.1}Basic Statistical Features and Text Features}{6}{subsubsection.3.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Basic Statistical Features and Text Features}}{6}{table.caption.4}\protected@file@percent }
+\newlabel{tab:features}{{2}{6}{Basic Statistical Features and Text Features}{table.caption.4}{}}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.2}LDA Topic Features}{6}{subsubsection.3.4.2}\protected@file@percent }
+\citation{broder1997resemblance}
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {3.4.3}Duplication Features: Constructing Temporal-Semantic Joint Space}{7}{subsubsection.3.4.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3}{\ignorespaces Comment text duplication patterns: Same text posted multiple times at different timestamps}}{7}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:duplicate_find}{{3}{7}{Comment text duplication patterns: Same text posted multiple times at different timestamps}{figure.caption.5}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Popularity difference between first posts and follower posts: Quantitative evidence of first-mover effect}}{7}{table.caption.6}\protected@file@percent }
+\newlabel{tab:12compare}{{3}{7}{Popularity difference between first posts and follower posts: Quantitative evidence of first-mover effect}{table.caption.6}{}}
+\@writefile{toc}{\contentsline {paragraph}{Jaccard Similarity: Set-Theoretic Text Similarity Measure}{7}{section*.7}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{N-gram Text Representation: Mapping from Strings to Sets}{7}{section*.8}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{MinHash Signature Algorithm: Probabilistic Approximate Nearest Neighbor Retrieval}{7}{section*.9}\protected@file@percent }
+\@writefile{toc}{\contentsline {paragraph}{Sliding Window Optimization: Balancing Temporal Locality and Global Coverage}{8}{section*.10}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4}{\ignorespaces MinHash retrieval example: Efficiently identifying semantically similar historical comments}}{8}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:duplicate_detect}{{4}{8}{MinHash retrieval example: Efficiently identifying semantically similar historical comments}{figure.caption.11}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4}Evaluation Metrics: Accuracy-Calibration Dual-Axis Framework}{9}{section.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.1}Prediction Accuracy Metrics: Adaptive Measures for Long-Tail Distributions}{9}{subsection.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.1}MSLE (Mean Squared Logarithmic Error): Fair Quantification of Relative Errors}{9}{subsubsection.4.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.1.2}ACP@$(\alpha , \delta )$ (Accuracy within Tolerance): Direct Reflection of Practical Value}{9}{subsubsection.4.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2}Uncertainty Calibration Metrics: Statistical Validity of Probabilistic Predictions}{9}{subsection.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.1}Log-Scale NLL (Negative Log-Likelihood): Information-Theoretic Measure of Distribution Fit}{9}{subsubsection.4.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.2}PICP@95\% (Prediction Interval Coverage Probability): Core Indicator of Statistical Validity}{9}{subsubsection.4.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsubsection}{\numberline {4.2.3}MPIW (Mean Prediction Interval Width): Measure of Information Gain}{10}{subsubsection.4.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3}Metric Computation for Log-Scale Models: Ensuring Cross-Scale Comparability}{10}{subsection.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5}Experiments}{10}{section.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1}Dataset: Real-World Social Media Corpus}{10}{subsection.5.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Dataset Statistics}}{10}{table.caption.12}\protected@file@percent }
+\newlabel{tab:dataset}{{4}{10}{Dataset Statistics}{table.caption.12}{}}
+\citation{duan2020ngboost}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.2}Experimental Setup: Reproducibility Design}{11}{subsection.5.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.3}Main Experimental Results: Six Orders of Magnitude MPIW Improvement}{11}{subsection.5.3}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces NGBoost Baseline Model Experimental Results}}{11}{table.caption.13}\protected@file@percent }
+\newlabel{tab:ngboost_results}{{5}{11}{NGBoost Baseline Model Experimental Results}{table.caption.13}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces BGE-Attention Model Experimental Results}}{11}{table.caption.14}\protected@file@percent }
+\newlabel{tab:bge_results}{{6}{11}{BGE-Attention Model Experimental Results}{table.caption.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.4}Ablation Studies: Systematic Verification of Component Contributions}{12}{subsection.5.4}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {7}{\ignorespaces Ablation Study Results}}{12}{table.caption.15}\protected@file@percent }
+\newlabel{tab:ablation}{{7}{12}{Ablation Study Results}{table.caption.15}{}}
+\bibstyle{plain}
+\bibcite{liu2019sentiment}{1}
+\bibcite{zhang2020brand}{2}
+\bibcite{wu2019npa}{3}
+\bibcite{yang2011patterns}{4}
+\bibcite{bandari2012pulse}{5}
+\bibcite{deng2020deep}{6}
+\bibcite{gal2016uncertainty}{7}
+\bibcite{blundell2015weight}{8}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Conclusion and Future Work}{13}{section.6}\protected@file@percent }
+\bibcite{gal2016dropout}{9}
+\bibcite{duan2020ngboost}{10}
+\bibcite{devlin2019bert}{11}
+\bibcite{liu2019roberta}{12}
+\bibcite{bge2023}{13}
+\bibcite{blei2003latent}{14}
+\bibcite{broder1997resemblance}{15}
+\@writefile{toc}{\contentsline {section}{\numberline {A}High-Frequency User Statistics}{15}{appendix.A}\protected@file@percent }
+\newlabel{appendix:vip_users}{{A}{15}{High-Frequency User Statistics}{appendix.A}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {8}{\ignorespaces High-Frequency Users and Their Occurrence Counts}}{15}{table.caption.17}\protected@file@percent }
+\newlabel{tab:vip_users}{{8}{15}{High-Frequency Users and Their Occurrence Counts}{table.caption.17}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Xiaomi-Related Vocabulary Lists}{15}{appendix.B}\protected@file@percent }
+\newlabel{appendix:xiaomi_keywords}{{B}{15}{Xiaomi-Related Vocabulary Lists}{appendix.B}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.1}Feature Extraction Vocabulary}{15}{subsection.B.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {9}{\ignorespaces Feature Extraction Vocabulary (27 words)}}{15}{table.caption.18}\protected@file@percent }
+\newlabel{tab:feature_keywords}{{9}{15}{Feature Extraction Vocabulary (27 words)}{table.caption.18}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {B.2}Special Embedding Keywords}{15}{subsection.B.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {10}{\ignorespaces Special Embedding Keywords (39 words)}}{15}{table.caption.19}\protected@file@percent }
+\newlabel{tab:embed_keywords}{{10}{15}{Special Embedding Keywords (39 words)}{table.caption.19}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {C}Weibo Emoji List}{16}{appendix.C}\protected@file@percent }
+\newlabel{appendix:emoji}{{C}{16}{Weibo Emoji List}{appendix.C}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {11}{\ignorespaces Weibo Emoji Embedding List}}{16}{table.caption.20}\protected@file@percent }
+\newlabel{tab:weibo_emoji}{{11}{16}{Weibo Emoji Embedding List}{table.caption.20}{}}
+\gdef \@abspage@last{16}

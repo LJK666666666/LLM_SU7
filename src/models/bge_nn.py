@@ -668,7 +668,7 @@ class BGENNModel:
                  # 消融实验参数
                  loss_type='log_nll', use_cross_attention=True,
                  use_context=True, use_density_features=True,
-                 **kwargs):
+                 target_col='子评论数', **kwargs):
         self.name = 'BGE_NN'
         self.freeze_bert = freeze_bert
         self.hidden_size = hidden_size
@@ -680,6 +680,7 @@ class BGENNModel:
         self.tokenizer = None
         self.supports_uncertainty = True
         self.use_log_target = True
+        self.target_col = target_col
 
         # 消融实验参数
         self.loss_type = loss_type  # 'log_nll' 或 'standard_nll'
@@ -857,7 +858,8 @@ class BGENNModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            target_col=self.target_col
         )
         val_dataset = CommentDataset(
             val_df, self.tokenizer,
@@ -865,7 +867,8 @@ class BGENNModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            target_col=self.target_col
         )
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
@@ -877,7 +880,8 @@ class BGENNModel:
                 max_length=128,
                 use_density_features=self.use_density_features,
                 use_context=self.use_context,
-                cache_dir=cache_dir
+                cache_dir=cache_dir,
+                target_col=self.target_col
             )
         else:
             self._test_dataset = None
@@ -1203,7 +1207,8 @@ class BGENNModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
+            target_col=self.target_col
         )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
@@ -1282,7 +1287,8 @@ class BGENNModel:
                 density_df if self.use_density_features else None,
                 max_length=128,
                 use_density_features=self.use_density_features,
-                use_context=self.use_context
+                use_context=self.use_context,
+                target_col=self.target_col
             )
 
         # 推理时可以使用更大的批次
@@ -1350,7 +1356,7 @@ class BGENNModel:
             y_pred: 预计算的预测值（可选，避免重复分词）
             y_std: 预计算的标准差（可选，避免重复分词）
         """
-        y_true = df['子评论数'].values
+        y_true = df[self.target_col].values
 
         # 如果提供了预计算结果，直接计算NLL
         if y_pred is not None and y_std is not None:
@@ -1383,6 +1389,7 @@ class BGENNModel:
             use_density_features=self.use_density_features,
             use_context=self.use_context,
             cache_dir=cache_dir
+            target_col=self.target_col
         )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 
@@ -1446,6 +1453,7 @@ class BGEMiniModel:
         self.tokenizer = None
         self.supports_uncertainty = True
         self.use_log_target = True
+        self.target_col = kwargs.get('target_col', '子评论数')
         self.loss_type = 'log_nll'  # Mini模型固定使用log空间NLL
         self.use_density_features = kwargs.get('use_density_features', True)  # 是否使用密度特征
 
@@ -1599,6 +1607,7 @@ class BGEMiniModel:
             use_density_features=self.use_density_features,
             use_context=self.use_context,
             cache_dir=cache_dir
+            target_col=self.target_col
         )
         val_dataset = CommentDataset(
             val_df, self.tokenizer,
@@ -1607,6 +1616,7 @@ class BGEMiniModel:
             use_density_features=self.use_density_features,
             use_context=self.use_context,
             cache_dir=cache_dir
+            target_col=self.target_col
         )
 
         # 如果提供了测试集，也一并创建（避免评估时重新分词）
@@ -1619,6 +1629,7 @@ class BGEMiniModel:
                 use_density_features=self.use_density_features,
                 use_context=self.use_context,
                 cache_dir=cache_dir
+                target_col=self.target_col
             )
         else:
             self._test_dataset = None
@@ -1922,6 +1933,7 @@ class BGEMiniModel:
             use_density_features=self.use_density_features,
             use_context=self.use_context,
             cache_dir=cache_dir
+            target_col=self.target_col
         )
         num_workers = min(4, os.cpu_count() or 2)
         loader = DataLoader(
@@ -1984,7 +1996,10 @@ class BGEMiniModel:
             else:
                 raise ValueError(f"缓存数据集 '{use_cached}' 不存在，请先调用fit并传入相应数据")
         else:
-            dataset = CommentDataset(df, self.tokenizer, density_df, max_length=128)
+            dataset = CommentDataset(
+                df, self.tokenizer, density_df, max_length=128,
+                target_col=self.target_col
+            )
 
         # 推理时可以使用更大的批次
         eval_batch_size = self.batch_size * 2
@@ -1995,6 +2010,7 @@ class BGEMiniModel:
             shuffle=False,
             num_workers=num_workers,
             pin_memory=True if self.device.type == 'cuda' else False
+                target_col=self.target_col
         )
 
         if self.use_bf16:
@@ -2046,7 +2062,7 @@ class BGEMiniModel:
             y_pred: 预计算的预测值（可选，避免重复分词）
             y_std: 预计算的标准差（可选，避免重复分词）
         """
-        y_true = df['子评论数'].values
+        y_true = df[self.target_col].values
 
         # 如果提供了预计算结果，直接计算NLL
         if y_pred is not None and y_std is not None:
@@ -2070,6 +2086,7 @@ class BGEMiniModel:
             use_density_features=self.use_density_features,
             use_context=self.use_context,
             cache_dir=cache_dir
+            target_col=self.target_col
         )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 

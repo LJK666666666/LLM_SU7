@@ -16,7 +16,7 @@ class CommentDataset(Dataset):
     """评论预测数据集（优化版：支持预分词缓存）"""
 
     def __init__(self, df, tokenizer, density_df=None, max_length=128, max_special_tokens=20,
-                 use_density_features=True, use_context=True, cache_dir=None):
+                 use_density_features=True, use_context=True, cache_dir=None, target_col='子评论数'):
         """
         参数:
             df: 原始数据DataFrame
@@ -27,12 +27,14 @@ class CommentDataset(Dataset):
             use_density_features: 是否使用时间密度特征（消融实验：w/o 重复特征）
             use_context: 是否使用上下文文本（消融实验：w/o 上下文）
             cache_dir: 预分词缓存目录路径（如果提供则使用缓存）
+            target_col: 目标变量列名（默认：子评论数）
         """
         self.df = df.reset_index(drop=True)
         self.max_length = max_length
         self.max_special_tokens = max_special_tokens
         self.use_density_features = use_density_features  # 消融参数
         self.use_context = use_context  # 消融参数
+        self.target_col = target_col
 
         # 合并时间密度特征（如果提供且启用）
         if density_df is not None and use_density_features:
@@ -65,7 +67,9 @@ class CommentDataset(Dataset):
             raise ValueError("必须提供tokenizer或有效的cache_dir")
 
         # 目标变量和数值特征转为Tensor
-        self.targets = torch.tensor(self.df['子评论数'].values.astype(np.float32), dtype=torch.float)
+        if self.target_col not in self.df.columns:
+            raise KeyError(f"目标列不存在: {self.target_col}")
+        self.targets = torch.tensor(self.df[self.target_col].values.astype(np.float32), dtype=torch.float)
         self.numeric_features_tensor = torch.tensor(self.numeric_features, dtype=torch.float)
 
     def _load_from_cache(self, cache_dir):
@@ -253,10 +257,19 @@ class CommentDataset(Dataset):
 
     def _prepare_numeric_features(self):
         """准备数值特征"""
-        # 用户总评论数（log变换，确保非负）
-        user_comments_raw = self.df['用户总评论数'].fillna(0).values
+        # 用户总评论数（减去当前评论子评论数，取max再log1p）
+        user_total_comments = self.df.get('用户总评论数', pd.Series([0] * len(self.df))).fillna(0).values
+        child_comments = self.df.get('子评论数', pd.Series([0] * len(self.df))).fillna(0).values
+        user_comments_raw = user_total_comments - child_comments
         user_comments_raw = np.clip(user_comments_raw, 0, None)  # 确保非负
         user_comments = np.log1p(user_comments_raw)
+
+        # 用户总点赞数（减去当前评论点赞数，取max再log1p）
+        user_total_likes = self.df.get('用户总点赞数', pd.Series([0] * len(self.df))).fillna(0).values
+        comment_likes = self.df.get('点赞数', pd.Series([0] * len(self.df))).fillna(0).values
+        user_likes_raw = user_total_likes - comment_likes
+        user_likes_raw = np.clip(user_likes_raw, 0, None)
+        user_likes = np.log1p(user_likes_raw)
 
         # 用户是否认证
         is_verified = self.df['用户是否认证'].fillna(0).astype(float).values
@@ -277,6 +290,7 @@ class CommentDataset(Dataset):
         # 基础特征列表
         feature_list = [
             user_comments,
+            user_likes,
             is_verified,
             is_first_level,
             hour_sin,
