@@ -257,19 +257,15 @@ class CommentDataset(Dataset):
 
     def _prepare_numeric_features(self):
         """准备数值特征"""
-        # 用户总评论数（减去当前评论子评论数，取max再log1p）
+        # 用户总评论数（已在数据集构建时做差并与0取max，这里直接log1p）
         user_total_comments = self.df.get('用户总评论数', pd.Series([0] * len(self.df))).fillna(0).values
-        child_comments = self.df.get('子评论数', pd.Series([0] * len(self.df))).fillna(0).values
-        user_comments_raw = user_total_comments - child_comments
-        user_comments_raw = np.clip(user_comments_raw, 0, None)  # 确保非负
-        user_comments = np.log1p(user_comments_raw)
+        user_total_comments = np.clip(user_total_comments, 0, None)  # 确保非负
+        user_comments = np.log1p(user_total_comments)
 
-        # 用户总点赞数（减去当前评论点赞数，取max再log1p）
+        # 用户总点赞数（已在数据集构建时做差并与0取max，这里直接log1p）
         user_total_likes = self.df.get('用户总点赞数', pd.Series([0] * len(self.df))).fillna(0).values
-        comment_likes = self.df.get('点赞数', pd.Series([0] * len(self.df))).fillna(0).values
-        user_likes_raw = user_total_likes - comment_likes
-        user_likes_raw = np.clip(user_likes_raw, 0, None)
-        user_likes = np.log1p(user_likes_raw)
+        user_total_likes = np.clip(user_total_likes, 0, None)
+        user_likes = np.log1p(user_total_likes)
 
         # 用户是否认证
         is_verified = self.df['用户是否认证'].fillna(0).astype(float).values
@@ -308,10 +304,9 @@ class CommentDataset(Dataset):
             # 最大相似度
             max_sim = self.df.get('最大相似度', pd.Series([0] * len(self.df))).values
 
-            # 重复次数（log变换，确保非负）
+            # 重复次数（确保非负，直接使用原值）
             repeat_raw = self.df.get('重复次数', pd.Series([0] * len(self.df))).values
-            repeat_raw = np.clip(repeat_raw, 0, None)  # 确保非负
-            repeat_count = np.log1p(repeat_raw)
+            repeat_count = np.clip(repeat_raw, 0, None)  # 确保非负
 
             feature_list.extend([time_idx, max_sim, repeat_count])
 

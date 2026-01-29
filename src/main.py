@@ -190,6 +190,15 @@ def load_checkpoint(checkpoint_path, model_name):
     return model, config
 
 
+def apply_log1p_user_stats(df):
+    """对用户统计特征直接取log1p（不做差值处理）"""
+    df = df.copy()
+    for col in ['用户总评论数', '用户总点赞数']:
+        if col in df.columns:
+            df[col] = np.log1p(df[col].clip(lower=0))
+    return df
+
+
 def test_only(args):
     """仅测试模式：加载已保存的模型并在测试集上评估
 
@@ -246,6 +255,10 @@ def test_only(args):
     # 加载数据
     print("\n【加载数据】")
     train_df, val_df, test_df = load_data(use_pkl=True)
+
+    # 传统模型：对用户统计特征直接取log1p
+    if args.model not in ['bge_nn', 'bge_mini']:
+        test_df = apply_log1p_user_stats(test_df)
 
     # 加载外部特征（如需要）
     test_lda, test_density = None, None
@@ -396,6 +409,12 @@ def train(args):
 
     # 1. 加载数据
     train_df, val_df, test_df = load_data(use_pkl=True)
+
+    # 传统模型：对用户统计特征直接取log1p
+    if args.model not in ['bge_nn', 'bge_mini']:
+        train_df = apply_log1p_user_stats(train_df)
+        val_df = apply_log1p_user_stats(val_df)
+        test_df = apply_log1p_user_stats(test_df)
 
     # 2. 加载外部特征（如需要）
     train_lda, val_lda, test_lda = None, None, None
@@ -758,8 +777,8 @@ def train_bge_nn(args, model_cls, train_df, val_df, test_df,
                 markersize=2, elinewidth=0.5, capsize=0)
     max_val = min(plot_y_true.max(), 100)
     ax.plot([0, max_val], [0, max_val], 'r--', label='完美预测', linewidth=2)
-    ax.set_xlabel(f'实际子评论数 ({ax_label})')
-    ax.set_ylabel('预测子评论数')
+    ax.set_xlabel(f'actual {target_col} ({ax_label})')
+    ax.set_ylabel(f'pred {target_col}')
     ax.set_xlim(0, max_val)
     ax.set_ylim(0, max_val * 0.8)
     ax.legend()

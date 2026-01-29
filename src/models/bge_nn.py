@@ -1388,7 +1388,7 @@ class BGENNModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
             target_col=self.target_col
         )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
@@ -1606,7 +1606,7 @@ class BGEMiniModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
             target_col=self.target_col
         )
         val_dataset = CommentDataset(
@@ -1615,7 +1615,7 @@ class BGEMiniModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
             target_col=self.target_col
         )
 
@@ -1628,7 +1628,7 @@ class BGEMiniModel:
                 max_length=128,
                 use_density_features=self.use_density_features,
                 use_context=self.use_context,
-                cache_dir=cache_dir
+                cache_dir=cache_dir,
                 target_col=self.target_col
             )
         else:
@@ -1932,7 +1932,7 @@ class BGEMiniModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
             target_col=self.target_col
         )
         num_workers = min(4, os.cpu_count() or 2)
@@ -2009,8 +2009,8 @@ class BGEMiniModel:
             batch_size=eval_batch_size,
             shuffle=False,
             num_workers=num_workers,
-            pin_memory=True if self.device.type == 'cuda' else False
-                target_col=self.target_col
+            pin_memory=True if self.device.type == 'cuda' else False,
+            target_col=self.target_col
         )
 
         if self.use_bf16:
@@ -2085,7 +2085,7 @@ class BGEMiniModel:
             max_length=128,
             use_density_features=self.use_density_features,
             use_context=self.use_context,
-            cache_dir=cache_dir
+            cache_dir=cache_dir,
             target_col=self.target_col
         )
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
