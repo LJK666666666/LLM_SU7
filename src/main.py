@@ -390,6 +390,7 @@ def test_bge_nn(args, model, test_df, test_density, checkpoint_path, target_col)
 
 def train(args):
     """主训练流程"""
+    target_col = '子评论数' if args.target == 'child' else '点赞数'
     # 解析特征组
     if args.features == 'all':
         feature_groups = ['base', 'text', 'lda', 'density']
@@ -405,7 +406,7 @@ def train(args):
     print("=" * 60)
     print(f"特征组: {feature_groups}")
     print(f"特征列 ({len(feature_cols)}个): {feature_cols}")
-    print(f"标签: {TARGET_COL}")
+    print(f"标签: {target_col}")
 
     # 1. 加载数据
     train_df, val_df, test_df = load_data(use_pkl=True)
